@@ -32,7 +32,7 @@
   - **명령:** `gcloud compute instances describe dots-ocr-l4-test-vm --zone=asia-northeast3-a --format='get(status)'`
   - **결과:** `RUNNING`이면 다음 단계로, `TERMINATED`이면 아래 시작 명령을 실행합니다.
 - **VM 시작:**
-  - **명령:** `bash scripts/A02_dotsocr/start_vm.sh`
+  - **명령:** `bash scripts/A02_dotsOCR/start_vm.sh`
   - **동작:**
     - GCP의 `dots-ocr-l4-test-vm` VM을 시작합니다.
     - VM에 접속하여 기존 컨테이너를 삭제하고, `~/input` 및 `~/result` 폴더를 생성하여 작업 환경을 초기화합니다.
@@ -42,6 +42,7 @@
   - 충분히 기다리지 않으면 `Connection Refused` 오류가 발생할 수 있습니다.
 
 ### 1.5단계: (권장) 작업 폴더 정리
+
 - 이전 작업의 파일이 남아있는 경우를 방지하기 위해, 이미지 업로드 전에 VM의 `input`, `result` 폴더를 비우는 것을 권장합니다.
 - **명령:** `gcloud compute ssh dots-ocr-l4-test-vm --zone=asia-northeast3-a --command="sudo rm -rf ~/input/* ~/result/*"`
 
@@ -72,7 +73,7 @@
 
 ### 4단계: 결과 다운로드 (고속화 버전)
 
-- **명령:** `bash scripts/A02_dotsocr/download_results.sh [-i] [-o <출력 디렉토리>]`
+- **명령:** `bash scripts/A02_dotsOCR/download_results.sh [-i] [-o <출력 디렉토리>]`
 - **주요 옵션:**
   - `-i`: 결과 이미지(.jpg)를 포함하여 다운로드합니다.
   - `-o`: 결과물이 저장될 로컬 디렉토리를 지정합니다. (기본값: `./results`)
@@ -84,7 +85,7 @@
 
 ### 5단계: VM 중지
 
-- **명령:** `bash scripts/A02_dotsocr/stop_vm.sh`
+- **명령:** `bash scripts/A02_dotsOCR/stop_vm.sh`
 - **동작:** VM을 중지하여 불필요한 클라우드 비용 발생을 방지합니다.
 - **주의사항:**
   - 모든 작업이 끝나면 반드시 실행하는 것을 권장합니다.

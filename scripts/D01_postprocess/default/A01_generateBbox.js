@@ -3,49 +3,9 @@ import path from 'path';
 import sharp from 'sharp';
 import { glob } from 'glob';
 import { Logger } from '#root/utils/logger.js';
+import { findColumnAreas } from '../_utils/findColumnAreas.js';
 
-function findColumnAreas(blocks, pageWidth) {
-  if (blocks.length < 5) {
-    return [{ x1: 0, x2: pageWidth }];
-  }
-  let columnAreas = [];
-  for (const block of blocks) {
-    const blockX1 = block.bbox[0];
-    const blockX2 = block.bbox[2];
-    const overlappingIndices = [];
-    for (let i = 0; i < columnAreas.length; i++) {
-      if (Math.max(blockX1, columnAreas[i].x1) < Math.min(blockX2, columnAreas[i].x2)) {
-        overlappingIndices.push(i);
-      }
-    }
-    if (overlappingIndices.length === 0) {
-      columnAreas.push({ x1: blockX1, x2: blockX2 });
-    } else {
-      let mergedX1 = blockX1;
-      let mergedX2 = blockX2;
-      for (const index of overlappingIndices) {
-        mergedX1 = Math.min(mergedX1, columnAreas[index].x1);
-        mergedX2 = Math.max(mergedX2, columnAreas[index].x2);
-      }
-      for (let i = overlappingIndices.length - 1; i >= 0; i--) {
-        columnAreas.splice(overlappingIndices[i], 1);
-      }
-      columnAreas.push({ x1: mergedX1, x2: mergedX2 });
-    }
-  }
-  return columnAreas.sort((a, b) => a.x1 - b.x1);
-}
-
-function getUnionBbox(bboxes) {
-  if (!bboxes || bboxes.length === 0) {
-    return [0, 0, 0, 0];
-  }
-  const x1 = Math.min(...bboxes.map((b) => b[0]));
-  const y1 = Math.min(...bboxes.map((b) => b[1]));
-  const x2 = Math.max(...bboxes.map((b) => b[2]));
-  const y2 = Math.max(...bboxes.map((b) => b[3]));
-  return [x1, y1, x2, y2];
-}
+import { getUnionBbox } from '../_utils/getUnionBbox.js';
 
 async function main() {
   Logger.section('D01-default-01 Generate Bbox Start');

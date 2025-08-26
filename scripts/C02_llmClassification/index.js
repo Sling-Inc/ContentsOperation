@@ -17,7 +17,7 @@ async function analyzeExamSet(
   isDebug,
   config
 ) {
-  Logger.section(`Analyzing exam set: ${path.basename(mergedJsonDir)}`);
+  Logger.log(`Analyzing exam set: ${path.basename(mergedJsonDir)}`);
 
   const { LLM_MODEL, LLM_PROMPT, LLM_CONFIG } = config;
 
@@ -89,7 +89,7 @@ async function analyzeExamSet(
 
     // 5. (디버그 모드) 시각화
     if (isDebug) {
-      Logger.section("Visualizing LLM results...");
+      Logger.log("Visualizing LLM results...");
 
       const COLORS = [
         "#FF0000",
@@ -163,22 +163,22 @@ async function analyzeExamSet(
 
 async function main() {
   const args = process.argv.slice(2);
-  const examTypeIndex = args.findIndex(arg => arg === '--examType');
-  let examType = 'default';
+  const examTypeIndex = args.findIndex((arg) => arg === "--examType");
+  let examType = "default";
   if (examTypeIndex !== -1 && args[examTypeIndex + 1]) {
     examType = args[examTypeIndex + 1];
     args.splice(examTypeIndex, 2);
   }
 
-  const isDebug = args.includes('--debug');
+  const isDebug = args.includes("--debug");
   if (isDebug) {
-    const debugIndex = args.indexOf('--debug');
+    const debugIndex = args.indexOf("--debug");
     args.splice(debugIndex, 1);
   }
 
   if (args.length < 3) {
     console.error(
-      "Usage: node scripts/C02_analyzeExamPaper <mergedJsonBaseDir> <highResImageBaseDir> <outputBaseDir> [--debug] [--examType <type>]"
+      "Usage: node scripts/C02_llmClassification <mergedJsonBaseDir> <highResImageBaseDir> <outputBaseDir> [--debug] [--examType <type>]"
     );
     process.exit(1);
   }
@@ -186,26 +186,33 @@ async function main() {
 
   // Dynamically import config based on examType
   let config;
-  if (examType === 'mockTest') {
-    config = await import('./config_mockTest.js');
+  if (examType === "mockTest") {
+    config = await import("./config_mockTest.js");
+  } else if (examType === "CSE") {
+    config = await import("./config_CSE.js");
   } else {
-    config = await import('./config.js');
+    config = await import("./config.js");
   }
 
-  const rootDir = path.resolve(__dirname, '..', '..');
+  const rootDir = path.resolve(__dirname, "..", "..");
   const absMergedJsonBaseDir = path.resolve(rootDir, mergedJsonBaseDir);
   const absHighResImageBaseDir = path.resolve(rootDir, highResImageBaseDir);
   const absOutputBaseDir = path.resolve(rootDir, outputBaseDir);
 
-  Logger.section(`Starting LLM analysis for all exams in: ${absMergedJsonBaseDir}`);
+  Logger.section(
+    `Starting LLM analysis for all exams in: ${absMergedJsonBaseDir}`
+  );
   Logger.info(`Concurrency limit set to: ${CONCURRENCY_LIMIT}`);
-  if (isDebug) Logger.info('Debug mode enabled: Visualization images will be generated.');
+  if (isDebug)
+    Logger.info("Debug mode enabled: Visualization images will be generated.");
   Logger.info(`Using exam type: ${examType}`);
 
   try {
-    const subDirs = (await fs.readdir(absMergedJsonBaseDir, { withFileTypes: true }))
-      .filter(dirent => dirent.isDirectory())
-      .map(dirent => dirent.name);
+    const subDirs = (
+      await fs.readdir(absMergedJsonBaseDir, { withFileTypes: true })
+    )
+      .filter((dirent) => dirent.isDirectory())
+      .map((dirent) => dirent.name);
 
     const taskQueue = [...subDirs];
 
@@ -218,11 +225,19 @@ async function main() {
         const mergedJsonDir = path.join(absMergedJsonBaseDir, examName);
         const highResImageDir = path.join(absHighResImageBaseDir, examName);
         const outputDir = path.join(absOutputBaseDir, examName);
-        
+
         try {
-          await analyzeExamSet(mergedJsonDir, highResImageDir, outputDir, isDebug, config);
+          await analyzeExamSet(
+            mergedJsonDir,
+            highResImageDir,
+            outputDir,
+            isDebug,
+            config
+          );
         } catch (workerError) {
-          Logger.error(`[Worker ${workerId}] Failed to process ${examName}: ${workerError.message}`);
+          Logger.error(
+            `[Worker ${workerId}] Failed to process ${examName}: ${workerError.message}`
+          );
         }
       }
     };
@@ -232,12 +247,11 @@ async function main() {
       workerPromises.push(worker(i));
     }
     await Promise.all(workerPromises);
-
   } catch (error) {
     Logger.error(`An error occurred during batch processing: ${error.message}`);
     Logger.debug(error.stack);
   } finally {
-    Logger.endSection('Finished all LLM analysis.');
+    Logger.endSection("Finished all LLM analysis.");
     Logger.close();
   }
 }
