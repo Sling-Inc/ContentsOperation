@@ -16,6 +16,12 @@ PDF 파일을 이미지로 변환하는 첫 단계입니다. 레이아웃 분석
 
 - **사용법:** `scripts/A02_dotsOCR/GEMINI.md` 참고
 
+### A03. 최적 레이아웃 선택 (`A03_selectOptimumLayout/`)
+
+여러 DPI로 분석된 레이아웃 결과 중 페이지별 최적의 JSON을 선택하여 다음 단계를 위한 입력 데이터를 생성합니다.
+
+- **사용법:** `node scripts/A03_selectOptimumLayout <A02_입력_폴더> <A01_이미지_폴더> <A03_출력_폴더>`
+
 ## B. OCR 수행
 
 ### B01. 이미지에서 텍스트 추출 (`B01_cloudVisionOCR/`)
@@ -29,9 +35,9 @@ PDF 파일을 이미지로 변환하는 첫 단계입니다. 레이아웃 분석
 
 ### C01. 레이아웃과 OCR 결과 병합 (`C01_mergeResults/`)
 
-A02와 B01에서 얻은 두 종류의 JSON(레이아웃, 텍스트)을 병합하여, 고해상도 이미지 기준으로 좌표가 변환되고 텍스트가 포함된 완전한 데이터를 생성합니다.
+A03과 B01에서 얻은 두 종류의 JSON(레이아웃, 텍스트)을 병합하여, 고해상도 이미지 기준으로 좌표가 변환되고 텍스트가 포함된 완전한 데이터를 생성합니다.
 
-- **사용법:** `node scripts/C01_mergeResults <레이아웃_JSON_폴더> <OCR_JSON_폴더> <레이아웃_이미지_폴더> <OCR_이미지_폴더> <출력_폴더> [--debug]`
+- **사용법:** `node scripts/C01_mergeResults <레이아웃_JSON_폴더> <OCR_JSON_폴더> <OCR_이미지_폴더> <출력_폴더> [--debug]`
 - **`--debug` (선택사항):** 추가 시, 병합된 레이아웃을 시각화한 이미지(.png)를 JSON과 동일한 폴더에 함께 저장합니다.
 
 ### C02. LLM을 이용한 최종 분석 (`C02_llmClassification/`)
@@ -40,6 +46,13 @@ A02와 B01에서 얻은 두 종류의 JSON(레이아웃, 텍스트)을 병합하
 
 - **사용법:** `node scripts/C02_llmClassification <병합_JSON_상위폴더> <고해상도_이미지_상위폴더> <최종_출력_상위폴더> [--debug]`
 - **`--debug` (선택사항):** 추가 시, LLM이 분류한 문제/지문 영역을 시각화한 이미지(.png)를 `llmResult.json`과 동일한 폴더에 함께 저장합니다.
+
+### C03. LLM 결과 검증 (`C03_CheckllmResult/`)
+
+C02의 결과물에 구조적인 오류(예: 블록 ID 중복 할당)가 없는지 검증합니다.
+
+- **사용법:** `node scripts/C03_CheckllmResult <C02_결과_폴더> <C01_결과_폴더>`
+
 
 ## D. 후처리 및 이미지 추출 (`D01_postprocess/`)
 

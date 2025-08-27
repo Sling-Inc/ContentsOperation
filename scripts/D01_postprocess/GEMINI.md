@@ -134,7 +134,7 @@ LLM 분석(`C02`)을 통해 생성된 `llmResult.json` 파일의 구조적 정�
 
 ## CSE 후처리 (`CSE/`)
 
-CSE(공무원 시험) 유형의 시험지를 후처리하며, **Bbox 생성**과 **LLM 정답 추출**의 두 단계로 나뉩니다.
+CSE(공무원 시험) 유형의 시험지를 후처리하며, **Bbox 생성**, **이미지 추출**, **LLM 정답 추출**의 세 단계로 나뉩니다.
 
 ### 1단계: `A01_generateBbox.js` (경계 상자 생성)
 
@@ -144,7 +144,20 @@ CSE(공무원 시험) 유형의 시험지를 후처리하며, **Bbox 생성**과
   node scripts/D01_postprocess/CSE/A01_generateBbox.js <C02_폴더> <C01_폴더> <B01_폴더> <D01_결과_폴더> [--debug]
   ```
 
-### 2단계: `B01_llmExtractAnswer.js` (정답 추출)
+### 2단계: `A02_cropImages.js` (이미지 추출)
+
+- **역할**: 1단계에서 생성된 `bbox.json` 파일을 읽어, 고해상도 원본 이미지에서 각 문제와 지문 영역을 정확히 잘라냅니다. 여러 페이지에 걸친 항목은 하나의 긴 이미지로 이어 붙여 최종 결과물을 저장합니다.
+- **입력**:
+  1.  `<D01_결과_폴더>` (내부에 `bbox.json` 포함)
+  2.  `B01_images_ocr_420dpi` 폴더 (고해상도 원본 이미지)
+- **출력**:
+  - `<D01_결과_폴더>/<시험지명>/images/`: 잘라내고 병합된 문제/지문 이미지 파일들
+- **사용법**:
+  ```bash
+  node scripts/D01_postprocess/CSE/A02_cropImages.js <D01_결과_폴더> <B01_폴더>
+  ```
+
+### 3단계: `B01_llmExtractAnswer.js` (정답 추출)
 
 - **역할**: `C02` 단계에서 생성된 `llmResult.json` 파일과 별도의 정답 PDF 파일을 함께 LLM에 전달하여, 각 문제의 최종 정답을 추출하고 `answers.json` 파일로 저장합니다.
 - **입력**:

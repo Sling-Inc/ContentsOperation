@@ -31,7 +31,6 @@ async function findJsonFiles(dir) {
 async function processFilePair(
   layoutJsonPath,
   ocrJsonPath,
-  layoutImagePath,
   ocrImagePath,
   outputJsonPath,
   isDebug,
@@ -40,18 +39,21 @@ async function processFilePair(
   try {
     Logger.info(`Processing: ${path.basename(layoutJsonPath)}`);
 
-    const layoutData = JSON.parse(await fs.readFile(layoutJsonPath, 'utf-8'));
-    const ocrData = JSON.parse(await fs.readFile(ocrJsonPath, 'utf-8'));
-
-    const layoutMeta = await sharp(layoutImagePath).metadata();
-    const ocrMeta = await sharp(ocrImagePath).metadata();
+    // A03에서 생성된 새로운 구조의 JSON 읽기
+    const layoutJsonContent = JSON.parse(
+      await fs.readFile(layoutJsonPath, 'utf-8')
+    );
+    const layoutData = layoutJsonContent.results;
     const layoutDimensions = {
-      width: layoutMeta.width,
-      height: layoutMeta.height,
+      width: layoutJsonContent.metadata.width,
+      height: layoutJsonContent.metadata.height,
     };
+
+    const ocrData = JSON.parse(await fs.readFile(ocrJsonPath, 'utf-8'));
+    const ocrMeta = await sharp(ocrImagePath).metadata();
     const ocrDimensions = { width: ocrMeta.width, height: ocrMeta.height };
 
-    // Bbox 너비 검증 로직 추가
+    // Bbox 너비 검증 로직 (기존과 동일)
     if (examType === 'mockTest' || examType === 'CSE') {
       const pageWidthThreshold = layoutDimensions.width / 2;
       for (const block of layoutData) {
@@ -122,20 +124,19 @@ async function main() {
     args.splice(debugIndex, 1);
   }
 
-  if (args.length < 5) {
+  // layoutImageDir 인자 제거, 필요 인자 수 4개로 변경
+  if (args.length < 4) {
     console.error(
-      'Usage: node scripts/C01_mergeOcrAndLayout <layoutJsonDir> <ocrJsonDir> <layoutImageDir> <ocrImageDir> <outputDir> [--debug] [--examType <type>]'
+      'Usage: node scripts/C01_mergeResults <layoutJsonDir> <ocrJsonDir> <ocrImageDir> <outputDir> [--debug] [--examType <type>]'
     );
     process.exit(1);
   }
 
-  const [layoutJsonDir, ocrJsonDir, layoutImageDir, ocrImageDir, outputDir] =
-    args;
+  const [layoutJsonDir, ocrJsonDir, ocrImageDir, outputDir] = args;
 
   const rootDir = path.resolve(__dirname, '..', '..');
   const absLayoutJsonDir = path.resolve(rootDir, layoutJsonDir);
   const absOcrJsonDir = path.resolve(rootDir, ocrJsonDir);
-  const absLayoutImageDir = path.resolve(rootDir, layoutImageDir);
   const absOcrImageDir = path.resolve(rootDir, ocrImageDir);
   const absOutputDir = path.resolve(rootDir, outputDir);
 
@@ -160,11 +161,7 @@ async function main() {
 
         const imageName = path.basename(relativePath, '.json');
         const subDir = path.dirname(relativePath);
-        const layoutImagePath = path.join(
-          absLayoutImageDir,
-          subDir,
-          `${imageName}.png`
-        );
+        // layoutImagePath 제거
         const ocrImagePath = path.join(
           absOcrImageDir,
           subDir,
@@ -177,8 +174,7 @@ async function main() {
           await processFilePair(
             layoutJsonPath,
             ocrJsonPath,
-            layoutImagePath,
-            ocrImagePath,
+            ocrImagePath, // layoutImagePath 제거
             outputJsonPath,
             isDebug,
             examType

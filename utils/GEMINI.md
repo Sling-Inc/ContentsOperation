@@ -91,7 +91,7 @@ Google Cloud Vision API를 사용하여 이미지에서 텍스트를 추출(OCR)
 
 ### 파라미터
 
-- `layoutData` (Array): `dots.ocr` 결과 JSON의 내용.
+- `layoutData` (Array): `A03` 결과 JSON의 `results` 필드에 해당하는, 바운딩 박스 정보가 담긴 배열.
 - `ocrData` (Object): Google Vision 결과 JSON의 `fullTextAnnotation` 객체.
 - `layoutDimensions` (Object): 레이아웃을 추출한 저해상도 이미지의 크기 (`{width, height}`).
 - `ocrDimensions` (Object): OCR을 수행한 고해상도 이미지의 크기 (`{width, height}`).

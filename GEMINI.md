@@ -36,32 +36,46 @@ PDF 파일을 분석 가능한 데이터(이미지, JSON)로 변환합니다.
 
 1.  **PDF → 이미지 변환 (`A01_convertPdfToImage/`)**
 
-    - PDF 파일을 저해상도(레이아웃 분석용)와 고해상도(OCR용) 이미지로 각각 변환합니다.
-    - **참고**: `CSE` 시험 유형은 레이아웃 분석 정확도를 위해 저해상도 이미지를 **120dpi**로 생성하는 것을 권장합니다.
+    - PDF 파일을 **여러 저해상도(레이아웃 분석용)**와 고해상도(OCR용) 이미지로 각각 변환합니다.
+    - 저해상도의 경우, `workspace/A01_images_layout` 디렉토리에 80, 100 등 여려 dpi를 사용하여 이미지로 변환합니다. 이는 다음 단계에서 최적의 레이아웃 분석 결과를 선택하기 위함입니다.
+    - 고해상도의 경우, 정해진 하나의 dpi(420)를 사용하여 이미지로 변환합니다.
     - **[실행 예시]**
+
       ```bash
-      # 저해상도 (100dpi, 기본)
-      node scripts/A01_convertPdfToImage workspace/pdfs workspace/A01_images_layout_100dpi 100 --examType default
-      # 저해상도 (120dpi, CSE 타입)
-      node scripts/A01_convertPdfToImage workspace/pdfs workspace/A01_images_layout_120dpi 120 --examType CSE
-      # 고해상도 (420dpi)
+      # 저해상도 (80, 100 등 여러 버전 생성)
+      node scripts/A01_convertPdfToImage workspace/pdfs workspace/A01_images_layout/80dpi 80
+      node scripts/A01_convertPdfToImage workspace/pdfs workspace/A01_images_layout/100dpi 100
+
+      # 고해상도 (420)
       node scripts/A01_convertPdfToImage workspace/pdfs workspace/B01_images_ocr_420dpi 420
       ```
 
 2.  **레이아웃 분석 (`A02_dotsOCR/`)**
 
     - 저해상도 이미지를 사용하여 GCP VM에서 `dots.ocr` 모델로 이미지의 구조를 분석하고 **레이아웃 JSON**을 생성합니다.
+    - `download_results.sh` 실행 시 `-i` 옵션을 추가하면, 레이아웃 분석이 시각화된 이미지(.jpg)를 함께 다운로드할 수 있습니다.
+    - 자세한 절차는 `scripts/A02_dotsOCR/GEMINI.md` 문서를 참고하세요.
     - **[실행 예시]**
       ```bash
-      # VM 시작부터 결과 다운로드까지 (자세한 내용은 A02_dotsOCR/GEMINI.md 참고)
+      # VM 시작부터 결과 다운로드까지
       bash scripts/A02_dotsOCR/start_vm.sh
-      gcloud compute scp --recurse workspace/A01_images_layout_100dpi/* ...
+      gcloud compute scp --recurse workspace/A01_images_layout/* ...
       gcloud compute ssh ... --command="~/process_all_images.sh ..."
       bash scripts/A02_dotsOCR/download_results.sh -o workspace/A02_dotsOCR_results
       bash scripts/A02_dotsOCR/stop_vm.sh
       ```
 
-3.  **텍스트 추출 (`B01_cloudVisionOCR/`)**
+3.  **최적 레이아웃 선택 (`A03_selectOptimumLayout/`)**
+
+    - 여러 DPI로 분석된 `A02_dotsOCR` 결과물 중에서, 페이지별로 가장 바운딩 박스가 많은 최적의 **레이아웃 JSON**을 선택합니다.
+    - 박스 수가 동일할 경우, 더 높은 DPI의 결과물을 선택합니다.
+    - 선택된 JSON은 원본 저해상도 이미지의 크기(width, height)와 DPI 정보가 포함된 새로운 구조로 저장되며, 시각화 이미지(.jpg)도 함께 복사됩니다.
+    - **[실행 예시]**
+      ```bash
+      node scripts/A03_selectOptimumLayout workspace/A02_dotsOCR_results workspace/A01_images_layout workspace/A03_optimum_result
+      ```
+
+4.  **텍스트 추출 (`B01_cloudVisionOCR/`)**
     - 고해상도 이미지에 Google Cloud Vision OCR을 적용하여 상세 **텍스트 JSON**을 생성합니다.
     - **[실행 예시]**
       ```bash
@@ -73,10 +87,10 @@ PDF 파일을 분석 가능한 데이터(이미지, JSON)로 변환합니다.
 1단계에서 생성된 두 종류의 JSON(레이아웃, 텍스트)을 하나로 합쳐 완전한 데이터를 만듭니다.
 
 1.  **JSON 병합 (`C01_mergeResults/`)**
-    - 레이아웃과 텍스트 JSON을 병합하여, 고해상도 이미지 기준의 좌표와 텍스트를 포함하는 **병합 JSON**을 생성합니다.
+    - `A03`에서 선택된 최적 레이아웃과 `B01`의 텍스트 JSON을 병합하여, 고해상도 이미지 기준의 좌표와 텍스트를 포함하는 **병합 JSON**을 생성합니다.
     - **[실행 예시]**
       ```bash
-      node scripts/C01_mergeResults workspace/A02_dotsOCR_results workspace/B02_cloudVisionOCR_results workspace/A01_images_layout_100dpi workspace/B01_images_ocr_420dpi workspace/C01_merged_results --debug --examType default
+      node scripts/C01_mergeResults workspace/A03_optimum_result workspace/B02_cloudVisionOCR_results workspace/B01_images_ocr_420dpi workspace/C01_merged_results --debug --examType default
       ```
 
 ### 3단계: LLM을 이용한 최종 분석
@@ -84,11 +98,20 @@ PDF 파일을 분석 가능한 데이터(이미지, JSON)로 변환합니다.
 병합된 데이터를 LLM에 전달하여 최종적으로 문제와 지문을 식별합니다.
 
 1.  **LLM 분석 (`C02_llmClassification/`)**
+
     - 병합된 JSON 데이터를 LLM에 보내 문제/지문 정보를 포함하는 **최종 분석 JSON**을 생성합니다. 이 스크립트는 내부적으로 병렬 처리되어 모든 시험지를 한 번에 분석합니다.
     - **[실행 예시]**
       ```bash
       # C01_merged_results 폴더 내의 모든 시험지에 대해 분석 실행
       node scripts/C02_llmClassification workspace/C01_merged_results workspace/B01_images_ocr_420dpi workspace/C02_llm_classification_results --debug --examType default
+      ```
+
+2.  **LLM 결과 검증 (`C03_CheckllmResult/`)** (선택 사항)
+    - `C02` 단계의 결과물인 `llmResult.json` 파일 내에서 하나의 블록 ID가 여러 문제/지문에 중복으로 할당되었는지 검사합니다.
+    - 후처리 단계 전에 데이터 정합성을 확인하기 위해 실행하는 것을 권장합니다.
+    - **[실행 예시]**
+      ```bash
+      node scripts/C03_CheckllmResult workspace/C02_llm_classification_results workspace/C01_merged_results
       ```
 
 # 에이전트 운영 규칙
