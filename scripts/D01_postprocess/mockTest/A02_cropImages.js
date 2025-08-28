@@ -8,34 +8,44 @@ async function main() {
   Logger.section("D01-mockTest-02 Crop Images Start");
   try {
     const args = process.argv.slice(2);
-    const [inputDir, imagesDir, outputDir] = args;
+    const [inputDir] = args;
+    const outputDir = inputDir; // For this script, output is within the input dir structure
+    const imagesDir = path.resolve(inputDir, '../../B01_images_ocr_420dpi');
+    Logger.info(`Using input dir: ${inputDir}`);
+    Logger.info(`Using images dir: ${imagesDir}`);
+    Logger.info(`Using output dir: ${outputDir}`);
 
-    await fs.mkdir(outputDir, { recursive: true });
-    const bboxFiles = await glob(path.join(inputDir, "**/bbox.json"));
+    const bboxFiles = await glob(path.join(inputDir, "**/**/bbox.json"));
     Logger.info(`Found ${bboxFiles.length} bbox.json files.`);
 
     for (const bboxFile of bboxFiles) {
-      const examName = path.basename(path.dirname(bboxFile));
-      Logger.section(`Processing exam: ${examName}`);
+      const sectionPath = path.dirname(bboxFile);
+      const sectionName = path.basename(sectionPath);
+      const examPath = path.dirname(sectionPath);
+      const examName = path.basename(examPath);
+      const imageDirForExam = path.join(imagesDir, examName);
+      Logger.section(`Processing Exam: ${examName}, Section: ${sectionName}`);
 
       const bboxContent = JSON.parse(await fs.readFile(bboxFile, "utf-8"));
       const allAdjustedItems = bboxContent.bbox || [];
 
-      const imagesOutputDir = path.join(outputDir, examName, 'images');
+      const imagesOutputDir = path.join(sectionPath, 'images');
       await fs.mkdir(imagesOutputDir, { recursive: true });
       
       const itemsById = allAdjustedItems.reduce((acc, item) => {
-        if (!acc[item.id]) acc[item.id] = [];
-        acc[item.id].push(item);
+        const uniqueId = `${item.type}-${item.id}`;
+        if (!acc[uniqueId]) acc[uniqueId] = [];
+        acc[uniqueId].push(item);
         return acc;
       }, {});
 
-      for (const id in itemsById) {
-        const items = itemsById[id].sort((a, b) => a.pageNum - b.pageNum);
+      for (const uniqueId in itemsById) {
+        const items = itemsById[uniqueId].sort((a, b) => a.pageNum - b.pageNum);
         const cropBuffers = [];
         for (const item of items) {
           const [x1, y1, x2, y2] = item.bbox;
-          const imagePath = path.join(imagesDir, examName, `page.${item.pageNum}.png`);
+          // Use the imagePath from the bbox item, which is now correctly resolved
+          const imagePath = item.imagePath;
           try {
             await fs.access(imagePath);
             const cropBuffer = await sharp(imagePath)
@@ -44,7 +54,7 @@ async function main() {
               .toBuffer();
             cropBuffers.push(cropBuffer);
           } catch (e) {
-             Logger.warn(`Could not crop image ${imagePath} for item ${id}: ${e.message}`);
+             Logger.warn(`Could not crop image ${imagePath} for item ${uniqueId}: ${e.message}`);
           }
         }
 
@@ -64,10 +74,10 @@ async function main() {
             .composite(compositeOperations)
             .png()
             .toBuffer();
-          const itemType = items[0].type.replace('problem', 'question');
-          const finalImagePath = path.join(imagesOutputDir, `${itemType}_${id}.png`);
+
+          const finalImagePath = path.join(imagesOutputDir, `${uniqueId}.png`);
           await fs.writeFile(finalImagePath, finalImageBuffer);
-          Logger.debug(`Saved stitched image for ${id} to ${finalImagePath}`);
+          Logger.debug(`Saved stitched image for ${uniqueId} to ${finalImagePath}`);
         }
       }
     }

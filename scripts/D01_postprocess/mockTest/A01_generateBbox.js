@@ -5,6 +5,7 @@ import { glob } from "glob";
 import cvReadyPromise from "@techstark/opencv-js";
 import { Logger } from "#root/utils/logger.js";
 import { findColumnAreas } from "../_utils/findColumnAreas.js";
+import { getUnionBbox } from "../_utils/getUnionBbox.js";
 
 import {
   adjustBboxesForPage,
@@ -81,93 +82,105 @@ async function main() {
         blockIdMap.set(index, { ...block, columnId });
       });
 
-      const resultsByPage = {};
-      for (const group of structure) {
-        const { id, ids, type: rawType } = group;
-        if (!ids || ids.length === 0) continue;
-        const itemsByPageAndColumn = {};
-        for (const blockId of ids) {
-          const item = blockIdMap.get(blockId);
-          if (!item) continue;
-          const key = `${item.pageNum}_${item.columnId}`;
-          if (!itemsByPageAndColumn[key]) itemsByPageAndColumn[key] = [];
-          itemsByPageAndColumn[key].push(item);
+      const structureBySection = structure.reduce((acc, group) => {
+        const section = group.section || 'default';
+        if (!acc[section]) acc[section] = [];
+        acc[section].push(group);
+        return acc;
+      }, {});
+
+      for (const sectionName in structureBySection) {
+        Logger.section(`Processing section: ${sectionName}`);
+        const sectionStructure = structureBySection[sectionName];
+
+        const resultsByPage = {};
+        for (const group of sectionStructure) {
+          const { id, ids, type: rawType } = group;
+          if (!ids || ids.length === 0) continue;
+          const itemsByPageAndColumn = {};
+          for (const blockId of ids) {
+            const item = blockIdMap.get(blockId);
+            if (!item) continue;
+            const key = `${item.pageNum}_${item.columnId}`;
+            if (!itemsByPageAndColumn[key]) itemsByPageAndColumn[key] = [];
+            itemsByPageAndColumn[key].push(item);
+          }
+          for (const key in itemsByPageAndColumn) {
+            const [pageNumStr, columnIdStr] = key.split("_");
+            const pageNum = parseInt(pageNumStr, 10);
+            const columnId = parseInt(columnIdStr, 10);
+            const itemsInGroup = itemsByPageAndColumn[key];
+            if (itemsInGroup.length === 0) continue;
+            if (!resultsByPage[pageNum]) resultsByPage[pageNum] = { questions: [], passages: [] };
+            const bbox = getUnionBbox(itemsInGroup.map(item => item.bbox));
+            const columnArea = columnAreas[columnId];
+            if (columnArea) {
+              bbox[0] = columnArea.x1;
+              bbox[2] = columnArea.x2;
+            }
+            const type = rawType === "problem" ? "question" : rawType;
+            const resultItem = { id, bbox, itemIds: itemsInGroup.map(item => allBlocks.indexOf(item)) };
+            if (type === "question") resultsByPage[pageNum].questions.push(resultItem);
+            else resultsByPage[pageNum].passages.push(resultItem);
+          }
         }
-        for (const key in itemsByPageAndColumn) {
-          const [pageNumStr, columnIdStr] = key.split("_");
+
+        let footerThreshold = 0;
+        for (const pageNumStr in resultsByPage) {
+          const pageResult = resultsByPage[pageNumStr];
+          const bboxes = [...pageResult.questions.map(q => q.bbox), ...pageResult.passages.map(p => p.bbox)];
+          for (const bbox of bboxes) {
+            if (bbox[3] > footerThreshold) footerThreshold = bbox[3];
+          }
+        }
+        footerThreshold += 20;
+        Logger.debug(`Calculated footer threshold for ${examName} - ${sectionName}: ${footerThreshold}`);
+
+        const allAdjustedItems = [];
+        for (const pageNumStr of Object.keys(resultsByPage)) {
           const pageNum = parseInt(pageNumStr, 10);
-          const columnId = parseInt(columnIdStr, 10);
-          const itemsInGroup = itemsByPageAndColumn[key];
-          if (itemsInGroup.length === 0) continue;
-          if (!resultsByPage[pageNum]) resultsByPage[pageNum] = { questions: [], passages: [] };
-          const bbox = getUnionBbox(itemsInGroup.map(item => item.bbox));
-          const columnArea = columnAreas[columnId];
-          if (columnArea) {
-            bbox[0] = columnArea.x1;
-            bbox[2] = columnArea.x2;
+          const pageResult = resultsByPage[pageNumStr];
+          const llmItemsOnPage = [
+            ...pageResult.questions.map((q) => ({ ...q, type: "question", pageNum })),
+            ...pageResult.passages.map((p) => ({ ...p, type: "passage", pageNum })),
+          ];
+          const imagePath = path.join(imagesDir, examName, `page.${pageNum}.png`);
+          try {
+            await fs.access(imagePath);
+            const { adjustedLlmItems, reliableComponentsForDebug, cvMats } = await adjustBboxesForPage(cv, imagePath, llmItemsOnPage, footerThreshold);
+            adjustedLlmItems.forEach(item => allAdjustedItems.push({ ...item, imagePath }));
+            if (isDebug) {
+              await saveDebugImages(cv, cvMats, outputDir, `${examName}/${sectionName}`, pageNum, imagePath, llmItemsOnPage, adjustedLlmItems, reliableComponentsForDebug);
+            }
+            Object.values(cvMats).forEach(mat => mat.delete());
+          } catch (e) {
+            Logger.warn(`Error processing page ${pageNum} for ${examName} - ${sectionName}: ${e.message}`);
           }
-          const type = rawType === "problem" ? "question" : rawType;
-          const resultItem = { id, bbox, itemIds: itemsInGroup.map(item => allBlocks.indexOf(item)) };
-          if (type === "question") resultsByPage[pageNum].questions.push(resultItem);
-          else resultsByPage[pageNum].passages.push(resultItem);
         }
-      }
 
-      let footerThreshold = 0;
-      for (const pageNumStr in resultsByPage) {
-        const pageResult = resultsByPage[pageNumStr];
-        const bboxes = [...pageResult.questions.map(q => q.bbox), ...pageResult.passages.map(p => p.bbox)];
-        for (const bbox of bboxes) {
-          if (bbox[3] > footerThreshold) footerThreshold = bbox[3];
+        if (allAdjustedItems.length > 0) {
+          const sectionOutputDir = path.join(outputDir, examName, sectionName);
+          await fs.mkdir(sectionOutputDir, { recursive: true });
+
+          const finalBboxData = allAdjustedItems.map(item => ({
+            id: item.id,
+            bbox: item.bbox,
+            type: item.type,
+            pageNum: item.pageNum,
+            imagePath: item.imagePath,
+          }));
+
+          const finalResult = {
+            info: {},
+            bbox: finalBboxData,
+          };
+
+          const outputJsonPath = path.join(sectionOutputDir, 'bbox.json');
+          await fs.writeFile(outputJsonPath, JSON.stringify(finalResult, null, 2));
+          Logger.info(`Saved final bbox JSON to ${outputJsonPath}`);
+        } else {
+           Logger.warn(`No items were processed for ${examName} - ${sectionName}, skipping JSON output.`);
         }
-      }
-      footerThreshold += 20;
-      Logger.debug(`Calculated footer threshold for ${examName}: ${footerThreshold}`);
-
-      const allAdjustedItems = [];
-      for (const pageNumStr of Object.keys(resultsByPage)) {
-        const pageNum = parseInt(pageNumStr, 10);
-        const pageResult = resultsByPage[pageNum];
-        const llmItemsOnPage = [
-          ...pageResult.questions.map((q) => ({ ...q, type: "question", pageNum })),
-          ...pageResult.passages.map((p) => ({ ...p, type: "passage", pageNum })),
-        ];
-        const imagePath = path.join(imagesDir, examName, `page.${pageNum}.png`);
-        try {
-          await fs.access(imagePath);
-          const { adjustedLlmItems, reliableComponentsForDebug, cvMats } = await adjustBboxesForPage(cv, imagePath, llmItemsOnPage, footerThreshold);
-          adjustedLlmItems.forEach(item => allAdjustedItems.push({ ...item, imagePath }));
-          if (isDebug) {
-            await saveDebugImages(cv, cvMats, outputDir, examName, pageNum, imagePath, llmItemsOnPage, adjustedLlmItems, reliableComponentsForDebug);
-          }
-          Object.values(cvMats).forEach(mat => mat.delete());
-        } catch (e) {
-          Logger.warn(`Error processing page ${pageNum} for ${examName}: ${e.message}`);
-        }
-      }
-
-      if (allAdjustedItems.length > 0) {
-        const examOutputDir = path.join(outputDir, examName);
-        await fs.mkdir(examOutputDir, { recursive: true });
-
-        const finalBboxData = allAdjustedItems.map(item => ({
-          id: item.id,
-          bbox: item.bbox,
-          type: item.type,
-          pageNum: item.pageNum,
-          imagePath: item.imagePath,
-        }));
-
-        const finalResult = {
-          info: {},
-          bbox: finalBboxData,
-        };
-
-        const outputJsonPath = path.join(examOutputDir, 'bbox.json');
-        await fs.writeFile(outputJsonPath, JSON.stringify(finalResult, null, 2));
-        Logger.info(`Saved final bbox JSON to ${outputJsonPath}`);
-      } else {
-         Logger.warn(`No items were processed for ${examName}, skipping JSON output.`);
       }
     }
   } catch (error) {
