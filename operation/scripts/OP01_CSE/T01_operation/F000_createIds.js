@@ -210,7 +210,14 @@ export async function F000_createIds() {
     const problemIdMap = uploadInfo.problemIdMap || {};
     const passageIdMap = uploadInfo.passageIdMap || {};
 
-    for (const box of infoFile.bbox) {
+    const contents_raw = Object.values(
+      infoFile.bbox.reduce((acc, item) => {
+        if (!acc[item.id]) acc[item.id] = item;
+        return acc;
+      }, {})
+    );
+
+    for (const box of contents_raw) {
       if (box.type === "question") {
         const problemId = problemIdMap[box.id];
 

@@ -1,5 +1,6 @@
 import fs from "fs/promises";
 import path from "path";
+import pLimit from "p-limit";
 
 import { getFirebaseAdmin } from "#operation/credentials/firebaseCredentials.js";
 import { uploadFileToFirebase } from "#operation/utils/bucket.js";
@@ -15,7 +16,7 @@ const history = {
 const TAG_CSE = "202508_CSE";
 const TARGET_DIR = history[TAG_CSE].dir;
 
-const target = "2025년 지방직 9급 국어";
+const limit = pLimit(10);
 
 export async function F001_uploadToFirebase() {
   const { admin } = await getFirebaseAdmin();
@@ -34,13 +35,15 @@ export async function F001_uploadToFirebase() {
   let batch = admin.firestore().batch();
   let count = 0;
 
+  let dirCount = 0;
   for (const subdir of subdirectories) {
     const subdirName = subdir.name.normalize("NFC");
-    if (subdirName !== target) {
-      continue;
-    }
 
-    Logger.section(`폴더: ${subdirName}`);
+    Logger.section(
+      `[${String(++dirCount).padStart(4, "0")} / ${String(
+        subdirectories.length
+      ).padStart(4, "0")}] 폴더: ${subdirName}`
+    );
 
     //1. 각종 파일 로드
     const infoFilePath = path.join(TARGET_DIR, subdirName, "bbox.json");
@@ -70,7 +73,7 @@ export async function F001_uploadToFirebase() {
 
     const currentDate = new Date();
 
-    const title = subdirName;
+    const title = subdirName.replace("및", " 및 ");
     const shortTitle =
       metadataFile.option === "공무원"
         ? title
@@ -130,10 +133,18 @@ export async function F001_uploadToFirebase() {
 
     let pages = [];
 
+    const contents_raw = Object.values(
+      infoFile.bbox.reduce((acc, item) => {
+        if (!acc[item.id]) acc[item.id] = item;
+        return acc;
+      }, {})
+    );
+
     /**
      * 1-4 passage 생성
      */
-    for (const box of infoFile.bbox.filter((box) => box.type === "passage")) {
+    const passages = contents_raw.filter((box) => box.type === "passage");
+    for (const box of passages) {
       const id = box.id;
 
       let passageId = uploadInfo.passageIdMap?.[id] || "";
@@ -173,12 +184,16 @@ export async function F001_uploadToFirebase() {
       });
     }
 
+    Logger.info(`passage: 총 ${passages.length}개`);
+
     /**
      *  1-5 problem 생성
      */
-    for (const box of infoFile.bbox
+    const problems = contents_raw
       .filter((box) => box.type === "question")
-      .sort((a, b) => Number(a.id) - Number(b.id))) {
+      .sort((a, b) => Number(a.id) - Number(b.id));
+
+    for (const box of problems) {
       const id = box.id;
 
       let problemId = uploadInfo.problemIdMap?.[id] || "";
@@ -247,6 +262,7 @@ export async function F001_uploadToFirebase() {
         });
       }
     }
+    Logger.info(`problem: 총 ${problems.length}개`);
 
     pages = pages
       .sort((a, b) => Number(a.index) - Number(b.index))
@@ -282,6 +298,34 @@ export async function F001_uploadToFirebase() {
         2
       )
     );
+
+    /**
+     * 이미지 업로드
+     */
+
+    Logger.debug(`이미지 업로드 ... ${contents_raw.length}개`);
+    const tasks = contents_raw.map((box) => {
+      if (box.type === "passage") {
+        const ref = passageRefMap[box.id];
+        const filePath = path.join(imagesPath, `passage_${box.id}.png`);
+        const dest = `passages/${ref.id}/image.png`;
+        return limit(async () => {
+          const url = await uploadFileToFirebase(admin, filePath, dest, "png");
+          passageInfoMap[box.id].imageURL = url;
+        });
+      } else if (box.type === "question") {
+        const ref = problemRefMap[box.id];
+        const filePath = path.join(imagesPath, `question_${box.id}.png`);
+        const dest = `problems/${ref.id}/image.png`;
+        return limit(async () => {
+          const url = await uploadFileToFirebase(admin, filePath, dest, "png");
+          problemInfoMap[box.id].imageURL = url;
+        });
+      }
+    });
+
+    await Promise.all(tasks);
+    Logger.debug("이미지 업로드 완료");
 
     /**
      * 2. Material 생성
@@ -390,38 +434,16 @@ export async function F001_uploadToFirebase() {
      * 4. Problem && Passage 생성
      */
 
-    for (const box of infoFile.bbox) {
+    for (const box of contents_raw) {
       if (box.type === "passage") {
         const passageId = box.id;
         const passageRef = passageRefMap[passageId];
-        Logger.info(`passageId: ${passageRef.id}`);
-
-        const imagePath = path.join(imagesPath, `passage_${box.id}.png`);
-        const imageURL = await uploadFileToFirebase(
-          admin,
-          imagePath,
-          `passages/${passageRef.id}/image.png`,
-          "png"
-        );
-
-        passageInfoMap[passageId].imageURL = imageURL;
 
         batch.set(passageRef, passageInfoMap[passageId]);
         count++;
       } else if (box.type === "question") {
         const problemId = box.id;
         const problemRef = problemRefMap[problemId];
-        Logger.info(`problemId: ${problemRef.id}`);
-
-        const imagePath = path.join(imagesPath, `question_${box.id}.png`);
-        const imageURL = await uploadFileToFirebase(
-          admin,
-          imagePath,
-          `problems/${problemRef.id}/image.png`,
-          "png"
-        );
-
-        problemInfoMap[problemId].imageURL = imageURL;
 
         batch.set(problemRef, problemInfoMap[problemId]);
         count++;
@@ -435,7 +457,6 @@ export async function F001_uploadToFirebase() {
     }
 
     Logger.endSection();
-    break;
   }
 
   await batch.commit();

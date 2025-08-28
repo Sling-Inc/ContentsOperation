@@ -5,24 +5,31 @@ import { RunScript } from "#operation/utils/runScript.js";
 // 실행할 실제 로직이 담긴 함수들을 가져옵니다.
 import { F000_createIds } from "./F000_createIds.js";
 import { F001_uploadToFirebase } from "./F001_uploadToFirebase.js";
+import { R001_mergeUploadInfo } from "./R001_mergeUploadInfo.js";
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 
 // 실행할 기능 목록을 정의합니다.
 const choices = {
-  ["000"]: "000. create ids",
-  ["001"]: "001. upload to firebase",
+  ["F00"]: "F00. create ids",
+  ["F01"]: "F01. upload to firebase",
+
+  ["R01"]: "R01. merge upload info",
 };
 
 // 메인 실행 함수
 async function main() {
   await RunScript(__dirname, choices, async (choice) => {
     switch (choice) {
-      case choices["000"]:
+      case choices["F00"]:
         await F000_createIds();
         break;
-      case choices["001"]:
+      case choices["F01"]:
         await F001_uploadToFirebase();
+        break;
+
+      case choices["R01"]:
+        await R001_mergeUploadInfo();
         break;
     }
   });

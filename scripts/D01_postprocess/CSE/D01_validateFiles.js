@@ -102,22 +102,28 @@ async function run(inputDir) {
         continue;
       }
 
-      if (type === "problem") {
+      if (type === "question") {
+        if (!Number.isInteger(Number(id))) {
+          Logger.error(`${infoFilePath} has invalid id: ${id}`);
+        }
+
         const choiceCount = box.choiceCount;
 
         if (
           !Number.isInteger(choiceCount) ||
-          choiceCount < 0 ||
+          choiceCount <= 0 ||
           choiceCount > 5
         ) {
-          Logger.error(`${infoFilePath} has invalid choiceCount`);
+          Logger.error(
+            `${infoFilePath} has invalid choiceCount: ${choiceCount}`
+          );
           Logger.endSection();
           continue;
         }
 
         const answer = answers.find((a) => a.id === id);
         if (!answer) {
-          Logger.error(`${answersFilePath} has no answer for ${id}`);
+          Logger.error(`${answersFilePath} has no answer for id: ${id}`);
           Logger.endSection();
           continue;
         }
@@ -125,14 +131,14 @@ async function run(inputDir) {
         const answerChoice = answer.answer;
 
         if (!answerChoice || answerChoice.length === 0) {
-          Logger.error(`${answersFilePath} has no answer for ${id}`);
+          Logger.error(`${answersFilePath} has no answerChoice for id: ${id}`);
           Logger.endSection();
           continue;
         }
 
         for (const choice of answerChoice) {
           if (!Number.isInteger(choice) || choice < 1 || choice > choiceCount) {
-            Logger.error(`${answersFilePath} has invalid answer for ${id}`);
+            Logger.error(`${answersFilePath} has invalid answer for id: ${id}`);
             Logger.endSection();
             continue;
           }

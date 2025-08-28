@@ -15,6 +15,13 @@ async function processExam(bboxFile, imagesDir, inputDir) {
     const bboxContent = JSON.parse(await fs.readFile(bboxFile, "utf-8"));
     const allItems = bboxContent.bbox || [];
 
+    const passages = allItems.filter((item) => item.type === "passage");
+    const passageProblems = passages
+      .map((passage) => passage.problemIds)
+      .flat();
+
+    //if (passageProblems.length === 0) return;
+
     const imagesOutputDir = path.join(inputDir, examName, "images");
     await fs.mkdir(imagesOutputDir, { recursive: true });
 
@@ -79,8 +86,17 @@ async function processExam(bboxFile, imagesDir, inputDir) {
           .png()
           .toBuffer();
 
-        const resizedBuffer = await sharp(stitchedBuffer)
-          .trim()
+        const trimmedBuffer = await sharp(stitchedBuffer).trim().toBuffer();
+        const { width: trimmedWidth } = await sharp(trimmedBuffer).metadata();
+
+        const extendedBuffer = await sharp(trimmedBuffer)
+          .extend({
+            right: Math.max(0, maxWidth - trimmedWidth),
+            background: { r: 255, g: 255, b: 255, alpha: 1 },
+          })
+          .toBuffer();
+
+        const resizedBuffer = await sharp(extendedBuffer)
           .resize({ width: 1720 })
           .png()
           .toBuffer();
@@ -88,7 +104,7 @@ async function processExam(bboxFile, imagesDir, inputDir) {
         let paddedBuffer = await sharp(resizedBuffer)
           .extend({
             top: 140,
-            bottom: 2000,
+            bottom: passageProblems.includes(id) ? 1000 : 2000,
             left: 140,
             right: 140,
             background: { r: 255, g: 255, b: 255, alpha: 1 },
@@ -97,10 +113,11 @@ async function processExam(bboxFile, imagesDir, inputDir) {
           .toBuffer();
 
         const metadata = await sharp(paddedBuffer).metadata();
-        if (metadata.height < 4000) {
+        const maxHeight = passageProblems.includes(id) ? 2000 : 4000;
+        if (metadata.height < maxHeight) {
           paddedBuffer = await sharp(paddedBuffer)
             .extend({
-              bottom: 4000 - metadata.height,
+              bottom: maxHeight - metadata.height,
               background: { r: 255, g: 255, b: 255, alpha: 1 },
             })
             .png()

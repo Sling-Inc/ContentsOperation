@@ -57,6 +57,7 @@ function createMetadata(fileName, categoriesMap) {
 
     supervisor = keywords[1];
     recruitType = `${supervisor}${grade ? ` ${grade}` : ""}`;
+    section = keywords[keywords.length - 1].replace("및", " 및 ");
     tag = recruitType;
   }
   // 경찰
@@ -66,8 +67,9 @@ function createMetadata(fileName, categoriesMap) {
   ) {
     option = "경찰";
     supervisor = fileNameWithoutYear.startsWith("경찰") ? "경찰" : "해경";
-    section =
-      fileNameWithoutYear.split(" ")[fileNameWithoutYear.split(" ").length - 1];
+    section = fileNameWithoutYear
+      .split(" ")
+      [fileNameWithoutYear.split(" ").length - 1].replace("및", " 및 ");
 
     const match = section.match(/^(.*?)\((.*?)\)$/);
     if (match) {
@@ -97,7 +99,7 @@ function createMetadata(fileName, categoriesMap) {
 
     const keywords = fileNameWithoutYear.split(" ");
     supervisor = keywords[0];
-    section = keywords[keywords.length - 1];
+    section = keywords[keywords.length - 1].replace("및", " 및 ");
 
     recruitType =
       RECRUIT_TYPE.find((r) => fileNameWithoutYear.includes(r)) || null;
@@ -114,7 +116,7 @@ function createMetadata(fileName, categoriesMap) {
 
     const keywords = fileNameWithoutYear.split(" ");
     supervisor = keywords[0];
-    section = keywords[keywords.length - 1];
+    section = keywords[keywords.length - 1].replace("및", " 및 ");
 
     const match = section.match(/^(.*?)\((.*?)\)$/);
     if (match) {
