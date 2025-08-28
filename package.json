@@ -1,14 +1,20 @@
 {
   "type": "module",
   "imports": {
-    "#root/*": "./*"
+    "#root/*": "./*",
+    "#operation/*": "./operation/*"
   },
   "dependencies": {
     "@google-cloud/vision": "^5.3.3",
     "@google/genai": "^1.15.0",
     "@techstark/opencv-js": "^4.11.0-release.1",
+    "axios": "^1.11.0",
+    "cross-spawn": "^7.0.6",
+    "csvtojson": "^2.0.10",
     "dotenv": "^17.2.1",
+    "firebase-admin": "^13.4.0",
     "glob": "^11.0.3",
+    "inquirer": "^12.9.4",
     "pdf-lib": "^1.17.1",
     "pdf2pic": "^3.2.0",
     "sharp": "^0.34.3"

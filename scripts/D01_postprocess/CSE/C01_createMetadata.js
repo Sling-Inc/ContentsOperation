@@ -1,6 +1,11 @@
 import fs from "fs/promises";
 import path from "path";
 import { Logger } from "#root/utils/logger.js";
+import { readCSV } from "#root/utils/csv.js";
+
+/**
+ * node scripts/D01_postprocess/CSE/C01_createMetadata.js  workspace/20250827_01/B01_images_ocr_420dpi workspace/20250827_01/D01_postprocess_results
+ */
 
 const GRADES = ["5급", "7급", "8급", "9급", "연구사", "지도사"];
 const TAGS_경찰 = {
@@ -19,9 +24,8 @@ const RECRUIT_TYPE = ["지역인재", "기술계고", "보훈청"];
 /**
  * 파일 이름에서 메타데이터를 생성합니다.
  * @param {string} fileName - 파일 이름 (예: "2024년 5급 공채시험-국어")
- * @returns {{executionYear: number|null, grade: string|null}}
  */
-function createMetadata(fileName) {
+function createMetadata(fileName, categoriesMap) {
   const normalizedFileName = fileName.normalize("NFC");
 
   let executionYear = null;
@@ -77,6 +81,15 @@ function createMetadata(fileName) {
         recruitType = value;
       }
     }
+
+    for (const g of ["9급", "7급"]) {
+      const c = categoriesMap[`${supervisor}-${g}-${section}`];
+
+      if (c) {
+        categories = c;
+        break;
+      }
+    }
   }
   // 군무원
   else if (fileNameWithoutYear.startsWith("군무원")) {
@@ -88,6 +101,8 @@ function createMetadata(fileName) {
 
     recruitType =
       RECRUIT_TYPE.find((r) => fileNameWithoutYear.includes(r)) || null;
+
+    categories = categoriesMap[`${supervisor}-${grade}-${section}`] || [];
   }
   // 소방
   else if (fileNameWithoutYear.startsWith("소방")) {
@@ -109,6 +124,8 @@ function createMetadata(fileName) {
 
     recruitType =
       RECRUIT_TYPE.find((r) => fileNameWithoutYear.includes(r)) || null;
+
+    categories = categoriesMap[`${supervisor}-${grade}-${section}`] || [];
   }
 
   return {
@@ -116,7 +133,7 @@ function createMetadata(fileName) {
     executionYear,
     grade,
     option,
-    recruitSubType,
+    recruitSubtype: recruitSubType,
     recruitType,
     round,
     section,
@@ -133,6 +150,23 @@ function createMetadata(fileName) {
 async function run(inputDir, outputDir) {
   Logger.section(`Start creating metadata from ${inputDir}`);
 
+  const categoriesMap = Object.fromEntries(
+    (
+      await readCSV(
+        "/Users/jgj/Documents/toy/contentsOperation/scripts/D01_postprocess/CSE/CSE_categories.csv"
+      )
+    ).map((row) => {
+      const supervisor = row.supervisor.normalize("NFC");
+      const grade = row.grade.normalize("NFC");
+      const section = row.section.normalize("NFC");
+      const categories = row.categories
+        .split(",")
+        .map((c) => c.trim().normalize("NFC"));
+
+      return [`${supervisor}-${grade}-${section}`, categories];
+    })
+  );
+
   try {
     const entries = await fs.readdir(inputDir, { withFileTypes: true });
     const subdirectories = entries.filter((entry) => entry.isDirectory());
@@ -146,7 +180,7 @@ async function run(inputDir, outputDir) {
       const subdirName = subdir.name;
       Logger.info(`Processing: ${subdirName}`);
 
-      const metadata = createMetadata(subdirName);
+      const metadata = createMetadata(subdirName, categoriesMap);
 
       const outputSubdirPath = path.join(outputDir, subdirName);
       await fs.mkdir(outputSubdirPath, { recursive: true });

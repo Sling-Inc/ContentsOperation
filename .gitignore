@@ -1,4 +1,5 @@
 .DS_Store
 _logs
+__logs
 node_modules
 workspace

@@ -46,11 +46,7 @@ async function processExam(bboxFile, imagesDir, inputDir) {
             .png()
             .toBuffer();
           cropBuffers.push(cropBuffer);
-        } catch (e) {
-          Logger.warn(
-            `Could not crop image ${imagePath} for item ${id}: ${e.message}`
-          );
-        }
+        } catch (e) {}
       }
 
       if (cropBuffers.length > 0) {
@@ -71,7 +67,7 @@ async function processExam(bboxFile, imagesDir, inputDir) {
           currentHeight += metadatas[i].height;
         }
 
-        const finalImageBuffer = await sharp({
+        const stitchedBuffer = await sharp({
           create: {
             width: maxWidth,
             height: totalHeight,
@@ -82,19 +78,48 @@ async function processExam(bboxFile, imagesDir, inputDir) {
           .composite(compositeOperations)
           .png()
           .toBuffer();
+
+        const resizedBuffer = await sharp(stitchedBuffer)
+          .trim()
+          .resize({ width: 1720 })
+          .png()
+          .toBuffer();
+
+        let paddedBuffer = await sharp(resizedBuffer)
+          .extend({
+            top: 140,
+            bottom: 2000,
+            left: 140,
+            right: 140,
+            background: { r: 255, g: 255, b: 255, alpha: 1 },
+          })
+          .png()
+          .toBuffer();
+
+        const metadata = await sharp(paddedBuffer).metadata();
+        if (metadata.height < 4000) {
+          paddedBuffer = await sharp(paddedBuffer)
+            .extend({
+              bottom: 4000 - metadata.height,
+              background: { r: 255, g: 255, b: 255, alpha: 1 },
+            })
+            .png()
+            .toBuffer();
+        }
+
         const itemType = items[0].type.replace("problem", "question");
         const finalImagePath = path.join(
           imagesOutputDir,
           `${itemType}_${id}.png`
         );
-        await fs.writeFile(finalImagePath, finalImageBuffer);
-        Logger.debug(`Saved stitched image for ${id} to ${finalImagePath}`);
+        await fs.writeFile(finalImagePath, paddedBuffer);
       }
     }
   } catch (error) {
     Logger.error(`Failed to process exam ${examName}: ${error.message}`);
-    Logger.debug(error.stack);
   }
+
+  Logger.endSection();
 }
 
 async function main() {
@@ -103,10 +128,7 @@ async function main() {
     const args = process.argv.slice(2);
     const [inputDir, imagesDir] = args;
 
-    Logger.info(`  - Concurrency Limit: ${CONCURRENCY_LIMIT}`);
-
     const bboxFiles = await glob(path.join(inputDir, "**/bbox.json"));
-    Logger.info(`Found ${bboxFiles.length} bbox.json files.`);
 
     const taskQueue = [...bboxFiles];
 
@@ -115,8 +137,6 @@ async function main() {
         const bboxFile = taskQueue.shift();
         if (!bboxFile) continue;
 
-        const examName = path.basename(path.dirname(bboxFile));
-        Logger.info(`[Worker ${workerId}] Picked up exam: ${examName}`);
         await processExam(bboxFile, imagesDir, inputDir);
       }
     };

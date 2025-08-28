@@ -1,8 +1,16 @@
 {
   "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "allowJs": true,
+    "checkJs": true,
+
+    "target": "ES6",
+
     "baseUrl": ".",
     "paths": {
-      "#root/*": ["./*"]
+      "#root/*": ["./*"],
+      "#operation/*": ["./operation/*"]
     }
   },
   "exclude": ["node_modules"]
