@@ -42,12 +42,12 @@ PDF 파일을 분석 가능한 데이터(이미지, JSON)로 변환합니다.
 1.  **PDF → 이미지 변환 (`A01_convertPdfToImage/`)**
 
     - PDF 파일을 **여러 저해상도(레이아웃 분석용)**와 고해상도(OCR용) 이미지로 각각 변환합니다.
-    - 저해상도의 경우, `workspace/A01_images_layout` 디렉토리에 80, 100 등 여려 dpi를 사용하여 이미지로 변환합니다. 이는 다음 단계에서 최적의 레이아웃 분석 결과를 선택하기 위함입니다.
+    - 저해상도의 경우, `workspace/A01_images_layout` 디렉토리에 80, 100 등 여려 dpi를 사용하여 이미지로 변환합니다. 이는 다음 단계에서 최적의 레이아웃 분석 결과를 선택하기 위함입니다. (단, `mockTest`의 경우 100dpi만 사용합니다.)
     - 고해상도의 경우, 정해진 하나의 dpi(420)를 사용하여 이미지로 변환합니다.
     - **[실행 예시]**
 
       ```bash
-      # 저해상도 (80, 100 등 여러 버전 생성)
+      # 저해상도 (일반: 80, 100 등 여러 버전 생성 / mockTest: 100dpi만 생성)
       node scripts/A01_convertPdfToImage workspace/pdfs workspace/A01_images_layout/80dpi 80
       node scripts/A01_convertPdfToImage workspace/pdfs workspace/A01_images_layout/100dpi 100
 
