@@ -8,7 +8,7 @@ import { F001_createIds } from "./F001_createIds.js";
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 
 const TARGET_DIR =
-  "/Users/jgj/Documents/toy/contentsOperation/workspace/20250901_02/D01_postprocess";
+  "/Users/jgj/Documents/toy/contentsOperation/workspace/20250902_T1/D01_postprocess";
 
 const TAGS = "202509_CSAT";
 
