@@ -2,9 +2,11 @@ import path from "path";
 import url from "url";
 import { RunScript } from "#operation/utils/runScript.js";
 import { getMockTestCodes } from "./F000_getMockTestCode.js";
-import { testDownload } from "./F001_downloadFiles.js";
+import { F001_downloadFiles } from "./F001_downloadFiles.js";
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
+
+const mockTestCodePath = path.join(__dirname, "mockTestCodes.json");
 
 const choices = {
   ["F000"]: "F000. Get Mock Test Codes",
@@ -18,7 +20,7 @@ async function main() {
         await getMockTestCodes();
         break;
       case choices["F001"]:
-        await testDownload();
+        await F001_downloadFiles(mockTestCodePath);
         break;
     }
   });

@@ -25,7 +25,9 @@ async function main() {
     const isDebug = args.includes("--debug");
 
     await fs.mkdir(outputDir, { recursive: true });
-    const llmResultFiles = await glob(path.join(llmAnalysisDir, "**/llmResult.json"));
+    const llmResultFiles = await glob(
+      path.join(llmAnalysisDir, "**/llmResult.json")
+    );
     Logger.info(`Found ${llmResultFiles.length} llmResult.json files.`);
 
     for (const llmResultFile of llmResultFiles) {
@@ -35,28 +37,46 @@ async function main() {
       const allBlocks = [];
       let pageWidth = 0;
       const mergedJsonDirPath = path.join(mergedResultsDir, examName);
-      const mergedJsonFiles = (await fs.readdir(mergedJsonDirPath)).filter((f) => f.endsWith(".json")).sort((a, b) => parseInt(a.match(/(\d+)/)[1], 10) - parseInt(b.match(/(\d+)/)[1], 10));
-      
+      const mergedJsonFiles = (await fs.readdir(mergedJsonDirPath))
+        .filter((f) => f.endsWith(".json"))
+        .sort(
+          (a, b) =>
+            parseInt(a.match(/(\d+)/)[1], 10) -
+            parseInt(b.match(/(\d+)/)[1], 10)
+        );
+
       for (const jsonFile of mergedJsonFiles) {
         const pageNum = parseInt(jsonFile.match(/page.(\d+).json/)[1], 10);
-        const pageBlocks = JSON.parse(await fs.readFile(path.join(mergedJsonDirPath, jsonFile), "utf-8"));
+        const pageBlocks = JSON.parse(
+          await fs.readFile(path.join(mergedJsonDirPath, jsonFile), "utf-8")
+        );
         if (pageWidth === 0) {
-            try {
-                const imagePath = path.join(imagesDir, examName, `page.${pageNum}.png`);
-                const metadata = await sharp(imagePath).metadata();
-                pageWidth = metadata.width;
-            } catch { pageWidth = 4000; }
+          try {
+            const imagePath = path.join(
+              imagesDir,
+              examName,
+              `page.${pageNum}.png`
+            );
+            const metadata = await sharp(imagePath).metadata();
+            pageWidth = metadata.width;
+          } catch {
+            pageWidth = 4000;
+          }
         }
-        allBlocks.push(...pageBlocks.map(b => ({...b, pageNum})))
+        allBlocks.push(...pageBlocks.map((b) => ({ ...b, pageNum })));
       }
 
       const llmContent = await fs.readFile(llmResultFile, "utf-8");
       const llmData = JSON.parse(llmContent);
       const structure = llmData.structure || [];
       const usedBlockIds = new Set(structure.flatMap((group) => group.ids));
-      const llmUsedBlocks = allBlocks.filter((_, index) => usedBlockIds.has(index));
+      const llmUsedBlocks = allBlocks.filter((_, index) =>
+        usedBlockIds.has(index)
+      );
       const columnAreas = findColumnAreas(llmUsedBlocks, pageWidth);
-      Logger.debug(`Detected ${columnAreas.length} columns for exam ${examName}.`);
+      Logger.debug(
+        `Detected ${columnAreas.length} columns for exam ${examName}.`
+      );
 
       const blockIdMap = new Map();
       allBlocks.forEach((block, index) => {
@@ -69,32 +89,32 @@ async function main() {
           }
         }
         if (columnId === -1) {
-            let minDistance = Infinity;
-            for (let i = 0; i < columnAreas.length; i++) {
-                const colCenterX = (columnAreas[i].x1 + columnAreas[i].x2) / 2;
-                const distance = Math.abs(centerX - colCenterX);
-                if (distance < minDistance) {
-                    minDistance = distance;
-                    columnId = i;
-                }
+          let minDistance = Infinity;
+          for (let i = 0; i < columnAreas.length; i++) {
+            const colCenterX = (columnAreas[i].x1 + columnAreas[i].x2) / 2;
+            const distance = Math.abs(centerX - colCenterX);
+            if (distance < minDistance) {
+              minDistance = distance;
+              columnId = i;
             }
+          }
         }
         blockIdMap.set(index, { ...block, columnId });
       });
 
-      const structureBySection = structure.reduce((acc, group) => {
-        const section = group.section || 'default';
-        if (!acc[section]) acc[section] = [];
-        acc[section].push(group);
+      const structureBySubject = structure.reduce((acc, group) => {
+        const subject = group.subject || "default";
+        if (!acc[subject]) acc[subject] = [];
+        acc[subject].push(group);
         return acc;
       }, {});
 
-      for (const sectionName in structureBySection) {
-        Logger.section(`Processing section: ${sectionName}`);
-        const sectionStructure = structureBySection[sectionName];
+      for (const subjectName in structureBySubject) {
+        Logger.section(`Processing subject: ${subjectName}`);
+        const subjectStructure = structureBySubject[subjectName];
 
         const resultsByPage = {};
-        for (const group of sectionStructure) {
+        for (const group of subjectStructure) {
           const { id, ids, type: rawType } = group;
           if (!ids || ids.length === 0) continue;
           const itemsByPageAndColumn = {};
@@ -111,16 +131,22 @@ async function main() {
             const columnId = parseInt(columnIdStr, 10);
             const itemsInGroup = itemsByPageAndColumn[key];
             if (itemsInGroup.length === 0) continue;
-            if (!resultsByPage[pageNum]) resultsByPage[pageNum] = { questions: [], passages: [] };
-            const bbox = getUnionBbox(itemsInGroup.map(item => item.bbox));
+            if (!resultsByPage[pageNum])
+              resultsByPage[pageNum] = { questions: [], passages: [] };
+            const bbox = getUnionBbox(itemsInGroup.map((item) => item.bbox));
             const columnArea = columnAreas[columnId];
             if (columnArea) {
               bbox[0] = columnArea.x1;
               bbox[2] = columnArea.x2;
             }
             const type = rawType === "problem" ? "question" : rawType;
-            const resultItem = { id, bbox, itemIds: itemsInGroup.map(item => allBlocks.indexOf(item)) };
-            if (type === "question") resultsByPage[pageNum].questions.push(resultItem);
+            const resultItem = {
+              id,
+              bbox,
+              itemIds: itemsInGroup.map((item) => allBlocks.indexOf(item)),
+            };
+            if (type === "question")
+              resultsByPage[pageNum].questions.push(resultItem);
             else resultsByPage[pageNum].passages.push(resultItem);
           }
         }
@@ -128,41 +154,78 @@ async function main() {
         let footerThreshold = 0;
         for (const pageNumStr in resultsByPage) {
           const pageResult = resultsByPage[pageNumStr];
-          const bboxes = [...pageResult.questions.map(q => q.bbox), ...pageResult.passages.map(p => p.bbox)];
+          const bboxes = [
+            ...pageResult.questions.map((q) => q.bbox),
+            ...pageResult.passages.map((p) => p.bbox),
+          ];
           for (const bbox of bboxes) {
             if (bbox[3] > footerThreshold) footerThreshold = bbox[3];
           }
         }
         footerThreshold += 20;
-        Logger.debug(`Calculated footer threshold for ${examName} - ${sectionName}: ${footerThreshold}`);
+        Logger.debug(
+          `Calculated footer threshold for ${examName} - ${subjectName}: ${footerThreshold}`
+        );
 
         const allAdjustedItems = [];
         for (const pageNumStr of Object.keys(resultsByPage)) {
           const pageNum = parseInt(pageNumStr, 10);
           const pageResult = resultsByPage[pageNumStr];
           const llmItemsOnPage = [
-            ...pageResult.questions.map((q) => ({ ...q, type: "question", pageNum })),
-            ...pageResult.passages.map((p) => ({ ...p, type: "passage", pageNum })),
+            ...pageResult.questions.map((q) => ({
+              ...q,
+              type: "question",
+              pageNum,
+            })),
+            ...pageResult.passages.map((p) => ({
+              ...p,
+              type: "passage",
+              pageNum,
+            })),
           ];
-          const imagePath = path.join(imagesDir, examName, `page.${pageNum}.png`);
+          const imagePath = path.join(
+            imagesDir,
+            examName,
+            `page.${pageNum}.png`
+          );
           try {
             await fs.access(imagePath);
-            const { adjustedLlmItems, reliableComponentsForDebug, cvMats } = await adjustBboxesForPage(cv, imagePath, llmItemsOnPage, footerThreshold);
-            adjustedLlmItems.forEach(item => allAdjustedItems.push({ ...item, imagePath }));
+            const { adjustedLlmItems, reliableComponentsForDebug, cvMats } =
+              await adjustBboxesForPage(
+                cv,
+                imagePath,
+                llmItemsOnPage,
+                footerThreshold
+              );
+            adjustedLlmItems.forEach((item) =>
+              allAdjustedItems.push({ ...item, imagePath })
+            );
             if (isDebug) {
-              await saveDebugImages(cv, cvMats, outputDir, `${examName}/${sectionName}`, pageNum, imagePath, llmItemsOnPage, adjustedLlmItems, reliableComponentsForDebug);
+              await saveDebugImages(
+                cv,
+                cvMats,
+                outputDir,
+                `${examName}/${subjectName}`,
+                pageNum,
+                imagePath,
+                llmItemsOnPage,
+                adjustedLlmItems,
+                reliableComponentsForDebug
+              );
             }
-            Object.values(cvMats).forEach(mat => mat.delete());
+            Object.values(cvMats).forEach((mat) => mat.delete());
           } catch (e) {
-            Logger.warn(`Error processing page ${pageNum} for ${examName} - ${sectionName}: ${e.message}`);
+            Logger.warn(
+              `Error processing page ${pageNum} for ${examName} - ${subjectName}: ${e.message}`
+            );
           }
         }
 
         if (allAdjustedItems.length > 0) {
-          const sectionOutputDir = path.join(outputDir, examName, sectionName);
-          await fs.mkdir(sectionOutputDir, { recursive: true });
+          const subjectOutputDir = path.join(outputDir, examName, subjectName);
+          await fs.mkdir(subjectOutputDir, { recursive: true });
 
-          const finalBboxData = allAdjustedItems.map(item => ({
+          const finalBboxData = allAdjustedItems.map((item) => ({
             id: item.id,
             bbox: item.bbox,
             type: item.type,
@@ -175,11 +238,16 @@ async function main() {
             bbox: finalBboxData,
           };
 
-          const outputJsonPath = path.join(sectionOutputDir, 'bbox.json');
-          await fs.writeFile(outputJsonPath, JSON.stringify(finalResult, null, 2));
+          const outputJsonPath = path.join(subjectOutputDir, "bbox.json");
+          await fs.writeFile(
+            outputJsonPath,
+            JSON.stringify(finalResult, null, 2)
+          );
           Logger.info(`Saved final bbox JSON to ${outputJsonPath}`);
         } else {
-           Logger.warn(`No items were processed for ${examName} - ${sectionName}, skipping JSON output.`);
+          Logger.warn(
+            `No items were processed for ${examName} - ${subjectName}, skipping JSON output.`
+          );
         }
       }
     }
