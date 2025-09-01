@@ -3,7 +3,7 @@ import path from "path";
 import extract from "extract-zip";
 import { Logger } from "#operation/utils/logger.js";
 import { downloadMockTestFiles } from "#operation/utils/crawler/EBS/mockTest.js";
-import { getInfoFromEbsMockTestFile } from "#root/operation/scripts/OP02_CSAT/_utils/materialInfo.js";
+import { getInfoFromEbsMockTestFile } from "#root/operation/scripts/OP02_CSAT/_utils/ebsFileUtils.js";
 
 const targetYear = "2024";
 const targetMonth = "09";
