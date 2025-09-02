@@ -29,8 +29,7 @@ async function processLlmResultFile(
     .filter((f) => f.endsWith(".json"))
     .sort(
       (a, b) =>
-        parseInt(a.match(/(\d+)/)[1], 10) -
-        parseInt(b.match(/(\d+)/)[1], 10)
+        parseInt(a.match(/(\d+)/)[1], 10) - parseInt(b.match(/(\d+)/)[1], 10)
     );
 
   for (const jsonFile of mergedJsonFiles) {
@@ -40,11 +39,7 @@ async function processLlmResultFile(
     );
     if (pageWidth === 0) {
       try {
-        const imagePath = path.join(
-          imagesDir,
-          examName,
-          `page.${pageNum}.png`
-        );
+        const imagePath = path.join(imagesDir, examName, `page.${pageNum}.png`);
         const metadata = await sharp(imagePath).metadata();
         pageWidth = metadata.width;
       } catch {
@@ -58,13 +53,9 @@ async function processLlmResultFile(
   const llmData = JSON.parse(llmContent);
   const structure = llmData.structure || [];
   const usedBlockIds = new Set(structure.flatMap((group) => group.ids));
-  const llmUsedBlocks = allBlocks.filter((_, index) =>
-    usedBlockIds.has(index)
-  );
+  const llmUsedBlocks = allBlocks.filter((_, index) => usedBlockIds.has(index));
   const columnAreas = findColumnAreas(llmUsedBlocks, pageWidth);
-  Logger.debug(
-    `Detected ${columnAreas.length} columns for exam ${examName}.`
-  );
+  Logger.debug(`Detected ${columnAreas.length} columns for exam ${examName}.`);
 
   const blockIdMap = new Map();
   allBlocks.forEach((block, index) => {
@@ -132,6 +123,7 @@ async function processLlmResultFile(
           id,
           bbox,
           itemIds: itemsInGroup.map((item) => allBlocks.indexOf(item)),
+          ...(group.isChoice !== undefined && { isChoice: group.isChoice }),
           ...(group.score !== undefined && { score: group.score }),
           ...(group.problemIds !== undefined && {
             problemIds: group.problemIds,
@@ -175,11 +167,7 @@ async function processLlmResultFile(
           pageNum,
         })),
       ];
-      const imagePath = path.join(
-        imagesDir,
-        examName,
-        `page.${pageNum}.png`
-      );
+      const imagePath = path.join(imagesDir, examName, `page.${pageNum}.png`);
       try {
         await fs.access(imagePath);
         const { adjustedLlmItems, reliableComponentsForDebug, cvMats } =
@@ -223,6 +211,7 @@ async function processLlmResultFile(
         type: item.type,
         pageNum: item.pageNum,
         imagePath: item.imagePath,
+        ...(item.isChoice !== undefined && { isChoice: item.isChoice }),
         ...(item.score !== undefined && { score: item.score }),
         ...(item.problemIds !== undefined && {
           problemIds: item.problemIds,
@@ -235,10 +224,7 @@ async function processLlmResultFile(
       };
 
       const outputJsonPath = path.join(subjectOutputDir, "bbox.json");
-      await fs.writeFile(
-        outputJsonPath,
-        JSON.stringify(finalResult, null, 2)
-      );
+      await fs.writeFile(outputJsonPath, JSON.stringify(finalResult, null, 2));
       Logger.info(`Saved final bbox JSON to ${outputJsonPath}`);
     } else {
       Logger.warn(

@@ -9,14 +9,18 @@ import {
   readJSONFile,
   existsFile,
   writeFile,
+  readFilesWithExt,
 } from "#root/operation/utils/file.js";
 import { Logger } from "#operation/utils/logger.js";
 
-export async function F000_createMetadata(TARGET_DIR, THUMBNAIL_DIR) {
+export async function F003_createMetadata(TARGET_DIR, THUMBNAIL_DIR) {
   Logger.section("Create Metadata json");
 
   const dirs = await readDirectories(TARGET_DIR);
 
+  /*
+   * 1. 시험지 & 해설지 메타데이터 생성
+   */
   for (const dir of dirs) {
     const [type, year, month, grade, supervisor, section, subject] =
       dir.split("_");
@@ -36,11 +40,17 @@ export async function F000_createMetadata(TARGET_DIR, THUMBNAIL_DIR) {
         `metadata_${metadataType}.json`
       );
       let metadata = {};
+      if (existsFile(metadataPath)) {
+        metadata = await readJSONFile(metadataPath);
+      }
 
       //
       // 시험지 메타데이터 생성
       //
       if (type === "problem") {
+        const answerFilePath = path.join(TARGET_DIR, dir, "answers.json");
+        const answerFile = await readJSONFile(answerFilePath);
+
         metadata = {
           ...metadata,
           type: "problem",
@@ -55,8 +65,8 @@ export async function F000_createMetadata(TARGET_DIR, THUMBNAIL_DIR) {
               ? subject
               : metadataType
           ),
-          problems: {},
-          passages: {},
+          problems: { ...metadata.problems },
+          passages: { ...metadata.passages },
         };
 
         const thumbnailTitle = `${metadata.info.metadata.executionMonth}월_고${metadata.info.metadata.highSchoolYear}_${metadata.info.metadata.supervisor}_${metadata.info.metadata.section.name}_${metadata.info.metadata.subject.name}.png`;
@@ -80,6 +90,23 @@ export async function F000_createMetadata(TARGET_DIR, THUMBNAIL_DIR) {
           const infoFilePath = path.join(TARGET_DIR, dir, sub, "bbox.json");
           const infoFile = await readJSONFile(infoFilePath);
 
+          const answerInfo = answerFile.find(
+            (item) =>
+              item.subject ===
+              (sub === "default"
+                ? subject === "공통"
+                  ? section
+                  : subject
+                : sub)
+          )?.answers;
+
+          const audioFiles = await readFilesWithExt(
+            path.join(TARGET_DIR, dir, sub, "audio"),
+            ".mp3"
+          );
+
+          if (!answerInfo) Logger.warn(`[${dir}] ${sub} 정답 정보가 없습니다.`);
+
           const boxes = Object.values(
             infoFile.bbox.reduce((acc, item) => {
               if (!acc[item.id]) acc[item.id] = item;
@@ -89,8 +116,22 @@ export async function F000_createMetadata(TARGET_DIR, THUMBNAIL_DIR) {
 
           for (const box of boxes) {
             if (box.type === "question") {
+              const answer = answerInfo?.find(
+                (item) => item.id === box.id
+              )?.answer;
+
+              const audioFile = audioFiles.find((item) =>
+                item.endsWith("/" + box.id + ".mp3")
+              );
+
+              if (!answer)
+                Logger.warn(`[${dir}] problem: ${box.id} 정답이 없습니다.`);
               metadata.problems[box.id] = {
+                ...metadata.problems[box.id],
                 score: box.score,
+                answer: answer,
+                isChoice: box.isChoice,
+                audioURL: audioFile,
                 imageURL: path.join(
                   TARGET_DIR,
                   dir,
@@ -102,6 +143,7 @@ export async function F000_createMetadata(TARGET_DIR, THUMBNAIL_DIR) {
               metadata.maxScore += box.score;
             } else if (box.type === "passage") {
               metadata.passages[box.id] = {
+                ...metadata.passages[box.id],
                 problemIds: box.problemIds,
                 imageURL: path.join(
                   TARGET_DIR,
@@ -116,10 +158,20 @@ export async function F000_createMetadata(TARGET_DIR, THUMBNAIL_DIR) {
         }
 
         // problem, passage 값을 점검합니다.
-        for (const problem of Object.values(metadata.problems)) {
+        for (const [id, problem] of Object.entries(metadata.problems)) {
           // 이미지 확인
           if (!existsFile(problem.imageURL)) {
-            Logger.warn(`[${dir}] problem: ${problem.id} 이미지가 없습니다.`);
+            Logger.warn(`[${dir}] problem: ${id} 이미지가 없습니다.`);
+          }
+
+          // 주관식 확인
+          if (!problem.isChoice) {
+            Logger.notice(`[${dir}] problem ${id} 주관식입니다.`);
+          }
+
+          // 오디오 파일 확인
+          if (problem.audioURL && !existsFile(problem.audioURL)) {
+            Logger.warn(`[${dir}] problem: ${id} 오디오가 없습니다.`);
           }
         }
 
@@ -191,6 +243,71 @@ export async function F000_createMetadata(TARGET_DIR, THUMBNAIL_DIR) {
       await writeFile(metadataPath, JSON.stringify(metadata, null, 2));
     }
   }
+
+  /**
+   * 2. 시험지 & 해설지 메타데이터 병합
+   */
+
+  Logger.section("해설 이미지 확인...");
+  for (const dir of dirs) {
+    const [type, year, month, grade, supervisor, section, subject] =
+      dir.split("_");
+
+    const metadataFiles = (
+      await readFilesWithExt(path.join(TARGET_DIR, dir), ".json")
+    ).filter((item) => !item.startsWith("metadata"));
+
+    for (const metadataFile of metadataFiles) {
+      const metadata = await readJSONFile(metadataFile);
+      if (metadata.type !== "problem") continue;
+
+      const explanationMetadata = await readJSONFile(
+        path.join(
+          TARGET_DIR,
+          dir.replace("problem", "explanation"),
+          path.basename(metadataFile)
+        )
+      );
+
+      for (const [id, problem] of Object.entries(metadata.problems)) {
+        problem.explanationImageURL =
+          explanationMetadata.problems[id]?.imageURL ?? null;
+
+        if (section === "영어") {
+          if (["16", "17"].includes(id)) {
+            problem.explanationImageURL =
+              explanationMetadata.passages["[16~17]"]?.imageURL ?? null;
+          }
+          // 41~42
+          else if (["41", "42"].includes(id)) {
+            problem.explanationImageURL =
+              explanationMetadata.passages["[41~42]"]?.imageURL ?? null;
+          }
+          // 43~45
+          else if (["43", "44", "45"].includes(id)) {
+            problem.explanationImageURL =
+              explanationMetadata.passages["[43~45]"]?.imageURL ?? null;
+          }
+        }
+
+        if (!problem.explanationImageURL) {
+          Logger.notice(`[${dir}] problem: ${id} 설명 이미지가 없습니다.`);
+        }
+      }
+
+      for (const [id, passage] of Object.entries(metadata.passages)) {
+        passage.explanationImageURL =
+          explanationMetadata.passages[id]?.imageURL ?? null;
+
+        if (!passage.explanationImageURL) {
+          Logger.warn(`[${dir}] passage: ${id} 설명 이미지가 없습니다.`);
+        }
+      }
+
+      await writeFile(metadataFile, JSON.stringify(metadata, null, 2));
+    }
+  }
+  Logger.endSection();
 
   Logger.endSection();
 }

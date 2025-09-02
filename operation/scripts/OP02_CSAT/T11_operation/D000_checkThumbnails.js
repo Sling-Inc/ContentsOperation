@@ -6,7 +6,7 @@ import {
   readJSONFile,
 } from "#root/operation/utils/file.js";
 
-const FILE_NORMALIZE = true;
+const FILE_NORMALIZE = false;
 
 export async function D000_checkThumbnails(TARGET_DIR, THUMBNAIL_DIR) {
   if (FILE_NORMALIZE) {

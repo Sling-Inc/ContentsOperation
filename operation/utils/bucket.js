@@ -7,7 +7,7 @@ import { getDownloadURL } from "firebase-admin/storage";
  * @param {import("firebase-admin").app.App} admin
  * @param {string} filePath
  * @param {string} destination
- * @param {"pdf" | "png" | "jpg"} format
+ * @param {"pdf" | "png" | "jpg" | "mp3"} format
  * @param {boolean} [emulator]
  */
 export async function uploadFileToFirebase(
@@ -33,6 +33,8 @@ export async function uploadFileToFirebase(
               ? "image/png"
               : format === "jpg"
               ? "image/jpeg"
+              : format === "mp3"
+              ? "audio/mpeg"
               : format,
         },
       });

@@ -9,11 +9,15 @@ export async function readDirectories(path) {
 }
 
 export async function readFilesWithExt(dirPath, ext) {
-  const entries = await fs.readdir(dirPath, { withFileTypes: true });
+  try {
+    const entries = await fs.readdir(dirPath, { withFileTypes: true });
 
-  return entries
-    .filter((entry) => entry.isFile() && path.extname(entry.name) === ext)
-    .map((entry) => path.join(dirPath, entry.name));
+    return entries
+      .filter((entry) => entry.isFile() && path.extname(entry.name) === ext)
+      .map((entry) => path.join(dirPath, entry.name));
+  } catch (e) {
+    return [];
+  }
 }
 
 export async function existsFile(path) {

@@ -50,7 +50,7 @@ async function createId(PROD, DEV, collection, set) {
   }
 }
 
-export async function F001_createIds(TARGET_DIR) {
+export async function F010_createIds(TARGET_DIR) {
   Logger.section("Create ids");
 
   const PROD = await getFirebaseAdmin("giyoung");

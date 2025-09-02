@@ -14,6 +14,9 @@ async function processBboxFile(bboxFile, { imagesDir, outputDir }) {
   const bboxContent = JSON.parse(await fs.readFile(bboxFile, "utf-8"));
   const allAdjustedItems = bboxContent.bbox || [];
 
+  const passages = allAdjustedItems.filter((item) => item.type === "passage");
+  const passageProblems = passages.map((passage) => passage.problemIds).flat();
+
   const imagesOutputDir = path.join(subjectPath, "images");
   await fs.mkdir(imagesOutputDir, { recursive: true });
 
@@ -67,7 +70,7 @@ async function processBboxFile(bboxFile, { imagesDir, outputDir }) {
         currentHeight += metadatas[i].height;
       }
 
-      const finalImageBuffer = await sharp({
+      const stitchedBuffer = await sharp({
         create: {
           width: maxWidth,
           height: totalHeight,
@@ -79,11 +82,47 @@ async function processBboxFile(bboxFile, { imagesDir, outputDir }) {
         .png()
         .toBuffer();
 
+      const trimmedBuffer = await sharp(stitchedBuffer).trim().toBuffer();
+      const { width: trimmedWidth } = await sharp(trimmedBuffer).metadata();
+
+      const extendedBuffer = await sharp(trimmedBuffer)
+        .extend({
+          right: Math.max(0, maxWidth - trimmedWidth),
+          background: { r: 255, g: 255, b: 255, alpha: 1 },
+        })
+        .toBuffer();
+
+      const resizedBuffer = await sharp(extendedBuffer)
+        .resize({ width: 1720 })
+        .png()
+        .toBuffer();
+
+      let paddedBuffer = await sharp(resizedBuffer)
+        .extend({
+          top: 140,
+          bottom: passageProblems.includes(uniqueId) ? 1000 : 2000,
+          left: 140,
+          right: 140,
+          background: { r: 255, g: 255, b: 255, alpha: 1 },
+        })
+        .png()
+        .toBuffer();
+
+      const metadata = await sharp(paddedBuffer).metadata();
+      const maxHeight = passageProblems.includes(uniqueId) ? 2000 : 4000;
+      if (metadata.height < maxHeight) {
+        paddedBuffer = await sharp(paddedBuffer)
+          .extend({
+            bottom: maxHeight - metadata.height,
+            background: { r: 255, g: 255, b: 255, alpha: 1 },
+          })
+          .png()
+          .toBuffer();
+      }
+
       const finalImagePath = path.join(imagesOutputDir, `${uniqueId}.png`);
-      await fs.writeFile(finalImagePath, finalImageBuffer);
-      Logger.debug(
-        `Saved stitched image for ${uniqueId} to ${finalImagePath}`
-      );
+      await fs.writeFile(finalImagePath, paddedBuffer);
+      Logger.debug(`Saved stitched image for ${uniqueId} to ${finalImagePath}`);
     }
   }
 }
