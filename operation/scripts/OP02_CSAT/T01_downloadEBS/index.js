@@ -9,7 +9,6 @@ const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const mockTestCodePath = path.join(__dirname, "mockTestCodes.json");
 
 const choices = {
-  ["F000"]: "F000. Get Mock Test Codes",
   ["F001"]: "F001. Download Mock Test Files",
 };
 

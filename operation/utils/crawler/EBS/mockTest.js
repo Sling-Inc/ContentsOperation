@@ -2,6 +2,7 @@ import { Logger } from "#operation/utils/logger.js";
 import { writeFile } from "#operation/utils/file.js";
 import path from "path";
 import axios from "axios";
+import fs from "fs/promises";
 
 const commonHeaders = {
   "User-Agent":
@@ -33,7 +34,7 @@ export async function findMockTestMainPageUrl(grade) {
     const response = await axios.get(url, { headers: commonHeaders });
     const html = response.data;
 
-    const regex = /<a href="([^"]+)">모의고사<\/a>/;
+    const regex = /<a href=\"([^\"]+)\">모의고사<\/a>/;
     const match = html.match(regex);
 
     if (match && match[1]) {
@@ -79,7 +80,7 @@ export async function getMockTestIRecords(grade, year) {
     const target = targetMap[grade];
 
     const regex = new RegExp(
-      `if\(target == '${target}'\) {([\s\S]*?)}`,
+      `if\\(target == '${target}'\\) {([\\s\\S]*?)}`,
       "g"
     );
 
@@ -119,10 +120,11 @@ export async function getMockTestIRecords(grade, year) {
  * @param {string} irecord - 모의고사 코드
  * @param {string} outputDir - 파일 저장 경로
  * @param {string} [cookie] - 로그인 세션 쿠키
+ * @returns {Promise<string[]>} 새로 다운로드한 파일 경로 목록
  */
 export async function downloadMockTestFiles(irecord, outputDir, cookie) {
   const ajaxUrl = `https://www.ebsi.co.kr/ebs/xip/xipt/RetrieveSCVMainTop.ajax?irecord=${irecord}`;
-  const referer = `https://www.ebsi.co.kr/ebs/xip/xipa/retrieveSCVMainInfo.ebs?irecord=${irecord}`;
+  const referer = `https://www.ebsi.co.kr/ebs/xipa/retrieveSCVMainInfo.ebs?irecord=${irecord}`;
 
   Logger.info(`AJAX 요청으로 파일 목록 가져오는 중... URL: ${ajaxUrl}`);
 
@@ -145,7 +147,7 @@ export async function downloadMockTestFiles(irecord, outputDir, cookie) {
     const tbodyMatch = html.match(tbodyRegex);
     if (!tbodyMatch) {
       Logger.warn("파일 목록 테이블(tbody)을 찾을 수 없습니다.");
-      return;
+      return [];
     }
 
     const rows = tbodyMatch[1].split("</tr>").filter((row) => row.trim());
@@ -156,7 +158,7 @@ export async function downloadMockTestFiles(irecord, outputDir, cookie) {
       const category = categoryMatch ? categoryMatch[1].trim() : null;
       if (!category) continue;
 
-      const linkRegex = /onclick="[^']+'([^']+)'[^>]+>([^<]+)<\/a>/g;
+      const linkRegex = /onclick=\"[^']+'([^']+)'[^>]+>([^<]+)<\/a>/g;
       let linkMatch;
       while ((linkMatch = linkRegex.exec(row)) !== null) {
         const downloadUrl = linkMatch[1];
@@ -165,36 +167,45 @@ export async function downloadMockTestFiles(irecord, outputDir, cookie) {
       }
     }
 
+    const newlyDownloadedFilePaths = [];
     const downloadPromises = downloadTasks.map(
       async ({ category, subject, downloadUrl }) => {
         const safeSubject = subject.replace(/\//g, "_");
-        Logger.info(`'${category}_${safeSubject}' 파일 다운로드 시작...`);
-        Logger.log(`URL: ${downloadUrl}`);
+        const extension = path.extname(new URL(downloadUrl).pathname);
+        const fileName = `${category}_${safeSubject}${extension}`;
+        const outputPath = path.join(outputDir, fileName);
 
         try {
-          const fileResponse = await axios.get(downloadUrl, {
-            responseType: "arraybuffer",
-            headers: commonHeaders,
-          });
-          const buffer = fileResponse.data;
-          const extension = path.extname(new URL(downloadUrl).pathname);
-          const fileName = `${category}_${safeSubject}${extension}`;
-          const outputPath = path.join(outputDir, fileName);
-
-          await writeFile(outputPath, buffer);
-          Logger.notice(`'${fileName}' 저장 완료: ${outputPath}`);
-        } catch (downloadError) {
-          Logger.error(
-            `'${category}_${subject}' 파일 처리 중 오류 발생`,
-            downloadError
+          await fs.access(outputPath);
+          Logger.info(
+            `파일이 이미 다운로드 폴더에 있어 건너뜁니다: ${fileName}`
           );
+        } catch (error) {
+          // File doesn't exist, so download it
+          Logger.info(`'${fileName}' 파일 다운로드 시작...`);
+          try {
+            const fileResponse = await axios.get(downloadUrl, {
+              responseType: "arraybuffer",
+              headers: commonHeaders,
+            });
+            const buffer = fileResponse.data;
+            await writeFile(outputPath, buffer);
+            Logger.notice(`'${fileName}' 저장 완료: ${outputPath}`);
+            newlyDownloadedFilePaths.push(outputPath); // Add path to list
+          } catch (downloadError) {
+            Logger.error(
+              `'${category}_${subject}' 파일 처리 중 오류 발생`,
+              downloadError
+            );
+          }
         }
       }
     );
 
     await Promise.all(downloadPromises);
+    return newlyDownloadedFilePaths;
   } catch (error) {
     Logger.error("AJAX 요청 또는 파일 처리 중 오류가 발생했습니다.", error);
-    return null;
+    return []; // Return empty array on error
   }
 }

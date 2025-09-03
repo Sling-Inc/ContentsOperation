@@ -5,34 +5,37 @@ import { Logger } from "#operation/utils/logger.js";
 import { downloadMockTestFiles } from "#operation/utils/crawler/EBS/mockTest.js";
 import { getInfoFromEbsMockTestFile } from "#root/operation/scripts/OP02_CSAT/_utils/ebsFileUtils.js";
 
-const targetYear = "2024";
+const targetYear = "2025";
 const targetMonth = "09";
 
-async function processFiles(downloadDir, outputDir, year, month, grade) {
-  const files = await fs.readdir(downloadDir);
+const TARGET_DIR_NAME = "20250903_03";
+
+async function processFiles(
+  newlyDownloadedFilePaths,
+  outputDir,
+  year,
+  month,
+  grade
+) {
   const allFiles = [];
 
-  for (const file of files) {
-    const filePath = path.join(downloadDir, file);
-    const stats = await fs.stat(filePath);
-
-    if (stats.isDirectory()) {
-      continue;
-    }
-
-    if (path.extname(file).toLowerCase() === ".zip") {
-      const extractDir = path.join(downloadDir, path.basename(file, ".zip"));
+  for (const filePath of newlyDownloadedFilePaths) {
+    if (path.extname(filePath).toLowerCase() === ".zip") {
+      const extractDir = path.join(
+        path.dirname(filePath),
+        path.basename(filePath, ".zip")
+      );
       await fs.mkdir(extractDir, { recursive: true });
       await extract(filePath, { dir: extractDir });
       const extractedFiles = await fs.readdir(extractDir);
       for (const extractedFile of extractedFiles) {
         allFiles.push({
           path: path.join(extractDir, extractedFile),
-          name: `${path.basename(file, ".zip")}/${extractedFile}`,
+          name: `${path.basename(filePath, ".zip")}/${extractedFile}`,
         });
       }
     } else {
-      allFiles.push({ path: filePath, name: file });
+      allFiles.push({ path: filePath, name: path.basename(filePath) });
     }
   }
 
@@ -66,7 +69,7 @@ export async function F001_downloadFiles(mockTestCodePath) {
   const targetIRecords = mockTestInfo[targetYear]?.[targetMonth];
 
   if (targetIRecords) {
-    const outputDir = path.join(process.cwd(), "workspace", "20250901_02");
+    const outputDir = path.join(process.cwd(), "workspace", TARGET_DIR_NAME);
     await fs.mkdir(outputDir, { recursive: true });
 
     for (const [grade, irecord] of Object.entries(targetIRecords)) {
@@ -81,14 +84,24 @@ export async function F001_downloadFiles(mockTestCodePath) {
       Logger.info(`다운로드 경로: ${downloadDir}`);
       Logger.info(`결과 저장 경로: ${outputDir}`);
 
-      await downloadMockTestFiles(irecord, downloadDir);
-      await processFiles(
-        downloadDir,
-        outputDir,
-        targetYear,
-        targetMonth,
-        grade
+      const newlyDownloadedFilePaths = await downloadMockTestFiles(
+        irecord,
+        downloadDir
       );
+
+      if (newlyDownloadedFilePaths.length > 0) {
+        await processFiles(
+          newlyDownloadedFilePaths,
+          outputDir,
+          targetYear,
+          targetMonth,
+          grade
+        );
+      } else {
+        Logger.info(
+          `${targetFolder}에 새로 다운로드할 파일이 없어 처리를 건너뜁니다.`
+        );
+      }
     }
   }
 

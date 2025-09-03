@@ -256,7 +256,14 @@ async function audioCuttor(
   }
 }
 
-const CONFIGS = {};
+const CONFIGS = {
+  problem_2025_09_1_교육청_영어_공통: {
+    skipStartSeconds: 148.5,
+  },
+  problem_2025_09_2_교육청_영어_공통: {
+    skipStartSeconds: 142,
+  },
+};
 
 export async function F002_cutEnglishAudio(TARGET_DIR, AUDIO_DIR) {
   const dirs = (await readDirectories(TARGET_DIR)).filter(

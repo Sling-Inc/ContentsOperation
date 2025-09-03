@@ -14,10 +14,10 @@ import { F011_uploadToFirebase } from "./F011_uploadToFirebase.js";
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 
 const TARGET_DIR =
-  "/Users/jgj/Documents/toy/contentsOperation/workspace/20250901_T1/D01_postprocess_results";
+  "/Users/jgj/Documents/toy/contentsOperation/workspace/20250903_01/D01_postprocess_results";
 
 const ANSWERS_DIR =
-  "/Users/jgj/Documents/toy/contentsOperation/workspace/20250901_02/_answer";
+  "/Users/jgj/Documents/toy/contentsOperation/workspace/20250903_01/_answer";
 
 const TAGS = "202509_CSAT";
 
@@ -25,13 +25,13 @@ const THUMBNAIL_DIR =
   "/Users/jgj/Documents/toy/contentsOperation/operation/scripts/OP02_CSAT/_thumbnails";
 
 const AUDIO_DIR =
-  "/Users/jgj/Documents/toy/contentsOperation/workspace/20250901_02/_audio";
+  "/Users/jgj/Documents/toy/contentsOperation/workspace/20250903_01/_audio";
 
 const choices = {
   ["D000"]: "D000. Check Thumbnails",
-  ["F001"]: "F001. Create Metadata json",
+  ["F001"]: "F001. Create Answer",
   ["F002"]: "F002. Audio Cuttor",
-  ["F003"]: "F003. Create Answer",
+  ["F003"]: "F003. Create Metadata",
 
   ["F010"]: "F010. Create ids",
   ["F011"]: "F011. Upload to Firebase",

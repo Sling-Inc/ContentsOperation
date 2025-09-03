@@ -176,9 +176,16 @@ async function main() {
     args.splice(debugIndex, 1);
   }
 
+  const targetFileIndex = args.findIndex((arg) => arg === "--targetFile");
+  let targetFilePath = null;
+  if (targetFileIndex !== -1 && args[targetFileIndex + 1]) {
+    targetFilePath = args[targetFileIndex + 1];
+    args.splice(targetFileIndex, 2);
+  }
+
   if (args.length < 3) {
     console.error(
-      "Usage: node scripts/C02_llmClassification <mergedJsonBaseDir> <highResImageBaseDir> <outputBaseDir> [--debug] [--examType <type>]"
+      "Usage: node scripts/C02_llmClassification <mergedJsonBaseDir> <highResImageBaseDir> <outputBaseDir> [--debug] [--examType <type>] [--targetFile <path>]"
     );
     process.exit(1);
   }
@@ -206,13 +213,22 @@ async function main() {
   if (isDebug)
     Logger.info("Debug mode enabled: Visualization images will be generated.");
   Logger.info(`Using exam type: ${examType}`);
+  if (targetFilePath) {
+    Logger.info(`Targeting specific files listed in: ${targetFilePath}`);
+  }
 
   try {
-    const subDirs = (
-      await fs.readdir(absMergedJsonBaseDir, { withFileTypes: true })
-    )
-      .filter((dirent) => dirent.isDirectory())
-      .map((dirent) => dirent.name);
+    let subDirs;
+    if (targetFilePath) {
+      const targetFileContent = await fs.readFile(targetFilePath, "utf-8");
+      subDirs = targetFileContent.split("\n").filter((line) => line.trim());
+    } else {
+      subDirs = (
+        await fs.readdir(absMergedJsonBaseDir, { withFileTypes: true })
+      )
+        .filter((dirent) => dirent.isDirectory())
+        .map((dirent) => dirent.name);
+    }
 
     const taskQueue = [...subDirs];
 

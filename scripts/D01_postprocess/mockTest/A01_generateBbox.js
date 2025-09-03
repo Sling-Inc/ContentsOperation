@@ -3,6 +3,8 @@ import path from "path";
 import sharp from "sharp";
 import { glob } from "glob";
 import cvReadyPromise from "@techstark/opencv-js";
+import yargs from "yargs";
+import { hideBin } from "yargs/helpers";
 import { Logger } from "#root/utils/logger.js";
 import { findColumnAreas } from "../_utils/findColumnAreas.js";
 import { getUnionBbox } from "../_utils/getUnionBbox.js";
@@ -242,15 +244,93 @@ async function main() {
   Logger.section("D01-mockTest-01 Generate Bbox Start");
   try {
     const cv = await cvReadyPromise;
-    const args = process.argv.slice(2);
-    const [llmAnalysisDir, mergedResultsDir, imagesDir, outputDir] = args;
-    const isDebug = args.includes("--debug");
+
+    const argv = yargs(hideBin(process.argv))
+      .usage(
+        "Usage: $0 <llmAnalysisDir> <mergedResultsDir> <imagesDir> <outputDir> [options]"
+      )
+      .command(
+        "$0 <llmAnalysisDir> <mergedResultsDir> <imagesDir> <outputDir>",
+        "Generate final bounding boxes from LLM results",
+        (yargs) => {
+          yargs
+            .positional("llmAnalysisDir", {
+              describe: "Directory containing LLM analysis results",
+              type: "string",
+            })
+            .positional("mergedResultsDir", {
+              describe: "Directory containing merged OCR and layout results",
+              type: "string",
+            })
+            .positional("imagesDir", {
+              describe: "Directory containing high-resolution OCR images",
+              type: "string",
+            })
+            .positional("outputDir", {
+              describe: "Directory to save the final bbox.json files",
+              type: "string",
+            });
+        }
+      )
+      .option("debug", {
+        describe: "Enable debug mode to save visualization images",
+        type: "boolean",
+        default: false,
+      })
+      .option("targetFile", {
+        alias: "t",
+        describe:
+          "Path to a text file containing a list of specific exam folder names to process (one per line)",
+        type: "string",
+      })
+      .demandCommand(4, "You must provide all four directory arguments.")
+      .help().argv;
+
+    const {
+      llmAnalysisDir,
+      mergedResultsDir,
+      imagesDir,
+      outputDir,
+      debug: isDebug,
+      targetFile,
+    } = argv;
+
+    let targetExams = null;
+    if (targetFile) {
+      try {
+        const fileContent = await fs.readFile(targetFile, "utf-8");
+        targetExams = fileContent
+          .split(/\r?\n/)
+          .filter((line) => line.trim() !== "");
+        Logger.info(
+          `Loaded ${targetExams.length} target exam names from ${targetFile}`
+        );
+      } catch (error) {
+        Logger.error(`Failed to read target file at ${targetFile}: ${error.message}`);
+        process.exit(1);
+      }
+    }
 
     await fs.mkdir(outputDir, { recursive: true });
-    const llmResultFiles = await glob(
+    let llmResultFiles = await glob(
       path.join(llmAnalysisDir, "**/llmResult.json")
     );
-    Logger.info(`Found ${llmResultFiles.length} llmResult.json files.`);
+
+    if (targetExams) {
+      llmResultFiles = llmResultFiles.filter((file) => {
+        const examName = path.basename(path.dirname(file));
+        return targetExams.includes(examName);
+      });
+      Logger.info(
+        `Filtered to ${llmResultFiles.length} files based on target list.`
+      );
+    }
+
+    if (llmResultFiles.length === 0) {
+      Logger.warn("No matching llmResult.json files found to process.");
+    } else {
+      Logger.info(`Found ${llmResultFiles.length} llmResult.json files to process.`);
+    }
 
     const processingPromises = llmResultFiles.map((file) =>
       processLlmResultFile(file, {
