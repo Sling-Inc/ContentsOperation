@@ -72,21 +72,53 @@ const getSubjectFromMockTestFileName = (section, fileName) => {
   // 과학탐구
   //
   else if (section === SECTION.과학탐구) {
-    if (fileName.includes("물리학Ⅰ") || fileName.includes("물리학1"))
+    if (
+      fileName.includes("물리학Ⅰ") ||
+      fileName.includes("물리학1") ||
+      fileName.includes("물리학I.pdf")
+    )
       return SUBJECT[SECTION.과학탐구].물리학Ⅰ;
-    else if (fileName.includes("물리학Ⅱ") || fileName.includes("물리학2"))
+    else if (
+      fileName.includes("물리학Ⅱ") ||
+      fileName.includes("물리학2") ||
+      fileName.includes("물리학II")
+    )
       return SUBJECT[SECTION.과학탐구].물리학ⅠⅠ;
-    else if (fileName.includes("화학Ⅰ") || fileName.includes("화학1"))
+    else if (
+      fileName.includes("화학Ⅰ") ||
+      fileName.includes("화학1") ||
+      fileName.includes("화학I.pdf")
+    )
       return SUBJECT[SECTION.과학탐구].화학Ⅰ;
-    else if (fileName.includes("화학Ⅱ") || fileName.includes("화학2"))
+    else if (
+      fileName.includes("화학Ⅱ") ||
+      fileName.includes("화학2") ||
+      fileName.includes("화학II")
+    )
       return SUBJECT[SECTION.과학탐구].화학ⅠⅠ;
-    else if (fileName.includes("생명과학Ⅰ") || fileName.includes("생명과학1"))
+    else if (
+      fileName.includes("생명과학Ⅰ") ||
+      fileName.includes("생명과학1") ||
+      fileName.includes("생명과학I.pdf")
+    )
       return SUBJECT[SECTION.과학탐구].생명과학Ⅰ;
-    else if (fileName.includes("생명과학Ⅱ") || fileName.includes("생명과학2"))
+    else if (
+      fileName.includes("생명과학Ⅱ") ||
+      fileName.includes("생명과학2") ||
+      fileName.includes("생명과학II")
+    )
       return SUBJECT[SECTION.과학탐구].생명과학ⅠⅠ;
-    else if (fileName.includes("지구과학Ⅰ") || fileName.includes("지구과학1"))
+    else if (
+      fileName.includes("지구과학Ⅰ") ||
+      fileName.includes("지구과학1") ||
+      fileName.includes("지구과학I.pdf")
+    )
       return SUBJECT[SECTION.과학탐구].지구과학Ⅰ;
-    else if (fileName.includes("지구과학Ⅱ") || fileName.includes("지구과학2"))
+    else if (
+      fileName.includes("지구과학Ⅱ") ||
+      fileName.includes("지구과학2") ||
+      fileName.includes("지구과학II")
+    )
       return SUBJECT[SECTION.과학탐구].지구과학ⅠⅠ;
     else return SUBJECT[SECTION.과학탐구].공통;
   }

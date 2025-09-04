@@ -4,125 +4,26 @@ import path from "path";
 import axios from "axios";
 import fs from "fs/promises";
 
+/**
+ * @typedef {Object} MockTestFile
+ * @property {"문제" | "해설지" | "정답표"} fileCategory - 모의고사 파일 종류
+ * @property {"국어" | "수학" | "영어" | "한국사" | "사회" | "과학" | "직업" | "제2외/한문"} section - 과목
+ * @property {string} downloadUrl - 다운로드 URL
+ */
+
 const commonHeaders = {
   "User-Agent":
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/53.36",
 };
 
 /**
- * 학년 정보를 바탕으로 EBSi 모의고사 메인 페이지 URL을 찾습니다.
- * @param {number} grade - 학년 (1, 2, 3)
- * @returns {Promise<string|null>} 모의고사 페이지 URL 또는 null
+ * @param {string} irecord
+ * @param {object} options
+ * @param {string} [options.cookie]
+ * @returns {Promise<MockTestFile[]>}
  */
-export async function findMockTestMainPageUrl(grade) {
-  if (![1, 2, 3].includes(grade)) {
-    Logger.error("학년은 1, 2, 3 중 하나여야 합니다.");
-    return null;
-  }
-
-  const gradeMap = {
-    1: "high1",
-    2: "high2",
-    3: "high3",
-  };
-  const gradeVal = gradeMap[grade];
-  const url = `https://www.ebsi.co.kr/ebs/pot/poti/main.ebs?cookieGradeVal=${gradeVal}`;
-
-  Logger.info(`${grade}학년 메인 페이지에 접근 중... URL: ${url}`);
-
-  try {
-    const response = await axios.get(url, { headers: commonHeaders });
-    const html = response.data;
-
-    const regex = /<a href=\"([^\"]+)\">모의고사<\/a>/;
-    const match = html.match(regex);
-
-    if (match && match[1]) {
-      const foundPath = match[1].replace(/&amp;/g, "&");
-      const fullUrl = `https://www.ebsi.co.kr${foundPath}`;
-      Logger.notice(`모의고사 페이지 URL을 찾았습니다: ${fullUrl}`);
-      return fullUrl;
-    } else {
-      Logger.warn("모의고사 링크를 찾을 수 없습니다.");
-      return null;
-    }
-  } catch (error) {
-    Logger.error("페이지를 가져오는 중 오류가 발생했습니다.", error);
-    return null;
-  }
-}
-
-/**
- * 특정 학년과 연도의 irecord 목록을 추출합니다.
- * @param {number} grade - 학년 (1, 2, 3)
- * @param {number} year - 연도 (예: 2025)
- * @returns {Promise<object|null>} { year: { target: [irecords...] } } 형식의 객체 또는 null
- */
-export async function getMockTestIRecords(grade, year) {
-  const mockTestUrl = await findMockTestMainPageUrl(grade);
-  if (!mockTestUrl) {
-    return null;
-  }
-
-  Logger.info(
-    `${year}년 ${grade}학년 irecord 정보를 가져옵니다... URL: ${mockTestUrl}`
-  );
-
-  try {
-    const response = await axios.get(mockTestUrl, { headers: commonHeaders });
-    const html = response.data;
-
-    const targetMap = {
-      1: "D100",
-      2: "D200",
-      3: "D300",
-    };
-    const target = targetMap[grade];
-
-    const regex = new RegExp(
-      `if\\(target == '${target}'\\) {([\\s\\S]*?)}`,
-      "g"
-    );
-
-    const scriptContentMatch = html.match(regex);
-    if (!scriptContentMatch) {
-      Logger.warn(
-        `${year}년 ${target}에 해당하는 스크립트 블록을 찾을 수 없습니다.`
-      );
-      return null;
-    }
-
-    const optionsRegex = /options \+= '<option value="(\d+)">[^<]+<\/option>';/g;
-    let irecords = [];
-    let match;
-    while ((match = optionsRegex.exec(scriptContentMatch[0])) !== null) {
-      irecords.push(match[1]);
-    }
-
-    if (irecords.length > 0) {
-      const result = {
-        [year]: {
-          [target]: irecords,
-        },
-      };
-      Logger.notice("irecord 정보를 성공적으로 추출했습니다.");
-      Logger.log(JSON.stringify(result, null, 2));
-      return result;
-    }
-  } catch (error) {
-    Logger.error("페이지 처리 중 오류가 발생했습니다.", error);
-    return null;
-  }
-}
-
-/**
- * 주어진 irecord에 해당하는 모든 모의고사 관련 파일을 다운로드합니다.
- * @param {string} irecord - 모의고사 코드
- * @param {string} outputDir - 파일 저장 경로
- * @param {string} [cookie] - 로그인 세션 쿠키
- * @returns {Promise<string[]>} 새로 다운로드한 파일 경로 목록
- */
-export async function downloadMockTestFiles(irecord, outputDir, cookie) {
+async function getMockTestFiles(irecord, options = {}) {
+  const { cookie } = options;
   const ajaxUrl = `https://www.ebsi.co.kr/ebs/xip/xipt/RetrieveSCVMainTop.ajax?irecord=${irecord}`;
   const referer = `https://www.ebsi.co.kr/ebs/xipa/retrieveSCVMainInfo.ebs?irecord=${irecord}`;
 
@@ -136,7 +37,7 @@ export async function downloadMockTestFiles(irecord, outputDir, cookie) {
     Origin: "https://www.ebsi.co.kr",
   };
   if (cookie) {
-    headers.Cookie = cookie;
+    headers["Cookie"] = cookie;
   }
 
   try {
@@ -151,28 +52,71 @@ export async function downloadMockTestFiles(irecord, outputDir, cookie) {
     }
 
     const rows = tbodyMatch[1].split("</tr>").filter((row) => row.trim());
-    const downloadTasks = [];
+    let downloadTasks = [];
 
     for (const row of rows) {
       const categoryMatch = row.match(/<td>(.*?)<\/td>/);
-      const category = categoryMatch ? categoryMatch[1].trim() : null;
-      if (!category) continue;
+      const fileCategory = categoryMatch ? categoryMatch[1].trim() : null;
+      if (!fileCategory) continue;
 
       const linkRegex = /onclick=\"[^']+'([^']+)'[^>]+>([^<]+)<\/a>/g;
       let linkMatch;
       while ((linkMatch = linkRegex.exec(row)) !== null) {
         const downloadUrl = linkMatch[1];
-        const subject = linkMatch[2].trim();
-        downloadTasks.push({ category, subject, downloadUrl });
+
+        /** @type {"국어" | "수학" | "영어" | "한국사" | "사회" | "과학" | "직업" | "제2외/한문"} */
+        // @ts-ignore
+        const section = linkMatch[2].trim();
+
+        downloadTasks.push({ fileCategory, section, downloadUrl });
       }
     }
 
+    return downloadTasks;
+  } catch (error) {
+    Logger.error("AJAX 요청 또는 파일 처리 중 오류가 발생했습니다.", error);
+    return [];
+  }
+}
+
+/**
+ * 주어진 irecord에 해당하는 모든 모의고사 관련 파일을 다운로드합니다.
+ * @param {string} irecord - 모의고사 코드
+ * @param {string} outputDir - 파일 저장 경로
+ * @param {object} [options] - 추가 옵션
+ * @param {string} [options.cookie] - 로그인 세션 쿠키
+ * @param {MockTestFile["section"][]} [options.targetSections] - 다운로드할 과목(section) 목록. 지정하지 않으면 모두 다운로드합니다.
+ * @param {MockTestFile["fileCategory"][]} [options.targetFileTypes] - 다운로드할 파일 종류. 지정하지 않으면 모두 다운로드합니다.
+ * @returns {Promise<string[]>} 새로 다운로드한 파일 경로 목록
+ */
+export async function downloadMockTestFiles(irecord, outputDir, options = {}) {
+  let downloadTasks = await getMockTestFiles(irecord, options);
+  const { targetSections, targetFileTypes } = options;
+
+  // targetSections이 제공되면 해당 과목만 필터링합니다.
+  if (targetSections && targetSections.length > 0) {
+    downloadTasks = downloadTasks.filter(({ section }) =>
+      targetSections.includes(section)
+    );
+  }
+
+  // targetFileTypes가 제공되면 해당 파일 종류만 필터링합니다.
+  if (targetFileTypes && targetFileTypes.length > 0) {
+    downloadTasks = downloadTasks.filter(({ fileCategory }) =>
+      targetFileTypes.includes(fileCategory)
+    );
+    Logger.info(
+      `[FILTER] 대상 파일 종류만 필터링합니다: ${targetFileTypes.join(", ")}`
+    );
+  }
+
+  try {
     const newlyDownloadedFilePaths = [];
     const downloadPromises = downloadTasks.map(
-      async ({ category, subject, downloadUrl }) => {
-        const safeSubject = subject.replace(/\//g, "_");
+      async ({ fileCategory, section, downloadUrl }) => {
+        const safeSubject = section.replace(/\//g, "_");
         const extension = path.extname(new URL(downloadUrl).pathname);
-        const fileName = `${category}_${safeSubject}${extension}`;
+        const fileName = `${fileCategory}_${safeSubject}${extension}`;
         const outputPath = path.join(outputDir, fileName);
 
         try {
@@ -194,7 +138,7 @@ export async function downloadMockTestFiles(irecord, outputDir, cookie) {
             newlyDownloadedFilePaths.push(outputPath); // Add path to list
           } catch (downloadError) {
             Logger.error(
-              `'${category}_${subject}' 파일 처리 중 오류 발생`,
+              `'${fileCategory}_${section}' 파일 처리 중 오류 발생`,
               downloadError
             );
           }
