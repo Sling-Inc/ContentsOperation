@@ -190,6 +190,8 @@ async function main() {
     config = await import("./config_mockTest.js");
   } else if (examType === "CSE") {
     config = await import("./config_CSE.js");
+  } else if (examType === "naesin") {
+    config = await import("./config_naesin.js");
   } else {
     config = await import("./config.js");
   }

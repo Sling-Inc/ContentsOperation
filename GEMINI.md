@@ -11,6 +11,25 @@
 JavaScript는 Node.js 22 버전 및 yarn을 사용합니다.
 JavaScript에서 각종 시각화를 위하여 sharp 패키지를 사용합니다.
 
+## 🔧 GCP 프로젝트 설정
+
+**중요**: 이 프로젝트는 `dev-giyoung` GCP 프로젝트를 사용합니다.
+
+### 초기 설정
+
+```bash
+# GCP 프로젝트 설정
+gcloud config set project dev-giyoung
+
+# 필수 의존성 설치 (macOS)
+brew install graphicsmagick ghostscript
+```
+
+### 인증 설정
+
+- Google AI API 키가 `.env` 파일에 설정되어야 합니다
+- GCP 인증: `gcloud auth application-default login`
+
 ## 프로젝트 구조
 
 ### `_logs` 폴더

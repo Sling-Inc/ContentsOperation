@@ -3,3 +3,5 @@ _logs
 __logs
 node_modules
 workspace
+data/
+.env
