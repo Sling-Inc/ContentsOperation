@@ -49,6 +49,7 @@ export async function F003_createMetadata(TARGET_DIR, THUMBNAIL_DIR) {
       //
       if (type === "problem") {
         const answerFilePath = path.join(TARGET_DIR, dir, "answers.json");
+        console.log(answerFilePath);
         const answerFile = await readJSONFile(answerFilePath);
 
         metadata = {
@@ -90,7 +91,10 @@ export async function F003_createMetadata(TARGET_DIR, THUMBNAIL_DIR) {
           const infoFilePath = path.join(TARGET_DIR, dir, sub, "bbox.json");
           const infoFile = await readJSONFile(infoFilePath);
 
-          const answerInfo = answerFile.find(
+          console.log(
+            sub === "default" ? (subject === "공통" ? section : subject) : sub
+          );
+          let answerInfo = answerFile.find(
             (item) =>
               item.subject ===
               (sub === "default"
@@ -105,7 +109,8 @@ export async function F003_createMetadata(TARGET_DIR, THUMBNAIL_DIR) {
             ".mp3"
           );
 
-          if (!answerInfo) Logger.warn(`[${dir}] ${sub} 정답 정보가 없습니다.`);
+          //if (!answerInfo) Logger.warn(`[${dir}] ${sub} 정답 정보가 없습니다.`);
+          if (!answerInfo) answerInfo = answerFile[0].answers;
 
           const boxes = Object.values(
             infoFile.bbox.reduce((acc, item) => {
@@ -271,7 +276,7 @@ export async function F003_createMetadata(TARGET_DIR, THUMBNAIL_DIR) {
 
       for (const [id, problem] of Object.entries(metadata.problems)) {
         problem.explanationImageURL =
-          explanationMetadata.problems[id]?.imageURL ?? null;
+          explanationMetadata?.problems?.[id]?.imageURL ?? null;
 
         if (section === "영어") {
           if (["16", "17"].includes(id)) {
@@ -297,7 +302,7 @@ export async function F003_createMetadata(TARGET_DIR, THUMBNAIL_DIR) {
 
       for (const [id, passage] of Object.entries(metadata.passages)) {
         passage.explanationImageURL =
-          explanationMetadata.passages[id]?.imageURL ?? null;
+          explanationMetadata?.passages?.[id]?.imageURL ?? null;
 
         if (!passage.explanationImageURL) {
           Logger.warn(`[${dir}] passage: ${id} 설명 이미지가 없습니다.`);

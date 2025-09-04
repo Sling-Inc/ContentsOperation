@@ -1,36 +1,31 @@
 import path from "path";
 import url from "url";
 import { RunScript } from "#operation/utils/runScript.js";
-import { getMockTestCodes } from "./F000_getMockTestCode.js";
 import { F001_downloadFiles } from "./F001_downloadFiles.js";
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 
-const mockTestCodePath = path.join(__dirname, "mockTestCodes.json");
+const KICE_URL = "https://cdn.kice.re.kr/sumo2609/index.html";
 
-const TARGET_DIR_NAME = "20250903_03";
+const TARGET_DIR_NAME = "20250903_04";
+const targetYear = "2025";
+const targetMonth = "09";
 
 const WORKSPACE_DIR = "/Users/jgj/Documents/toy/contentsOperation/workspace";
 
 const DOWNLOAD_DIR = path.join(WORKSPACE_DIR, "downloads");
 const OUTPUT_DIR = path.join(WORKSPACE_DIR, TARGET_DIR_NAME);
 
-const targetYear = "2025";
-const targetMonth = "09";
-
 const choices = {
-  ["F001"]: "F001. Download Mock Test Files",
+  ["001"]: "001. KICE 자료 다운로드",
 };
 
 async function main() {
   await RunScript(__dirname, choices, async (choice) => {
     switch (choice) {
-      case choices["F000"]:
-        await getMockTestCodes();
-        break;
-      case choices["F001"]:
+      case choices["001"]:
         await F001_downloadFiles(
-          mockTestCodePath,
+          KICE_URL,
           DOWNLOAD_DIR,
           OUTPUT_DIR,
           targetYear,

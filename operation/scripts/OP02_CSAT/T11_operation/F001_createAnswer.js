@@ -1,7 +1,11 @@
 import fs from "fs/promises";
 import os from "os";
 import path from "path";
-import { readDirectories, existsFile } from "#operation/utils/file.js";
+import {
+  readDirectories,
+  existsFile,
+  readFilesWithExt,
+} from "#operation/utils/file.js";
 import { Logger } from "#operation/utils/logger.js";
 import { runGemini } from "#operation/utils/gemini.js";
 
@@ -56,7 +60,8 @@ export const LLM_CONFIG = {
 };
 
 async function processExam(info) {
-  const { id, subjects, answerFilePath, outputFilePath, isDebug } = info;
+  const { id, subjects, answerFilePath, outputFilePath, isDebug, answerType } =
+    info;
 
   Logger.debug(`Processing exam: ${id}`);
   try {
@@ -76,7 +81,8 @@ async function processExam(info) {
               },
               {
                 inlineData: {
-                  mimeType: "image/png",
+                  mimeType:
+                    answerType === "png" ? "image/png" : "application/pdf",
                   data: Buffer.from(answerFileData).toString("base64"),
                 },
               },
@@ -99,31 +105,54 @@ async function processExam(info) {
 
 export async function F001_createAnswer(TARGET_DIR, ANSWERS_DIR) {
   const dirs = await readDirectories(TARGET_DIR);
+  console.log(ANSWERS_DIR);
+  const answerFilePDFs = await readFilesWithExt(ANSWERS_DIR, ".pdf");
 
   const taskQueue = [];
 
   for (const dir of dirs) {
+    let answerFilePath;
+    let answerType;
     const [type, year, month, grade, supervisor, section, subject] =
       dir.split("_");
 
     if (type !== "problem") continue;
 
     const answerFileName = `${year}_${month}_${grade}_${supervisor}_${section}.png`;
+    const isAnswerFileExists = await existsFile(
+      path.join(ANSWERS_DIR, answerFileName)
+    );
 
-    if (!existsFile(path.join(ANSWERS_DIR, answerFileName))) {
-      Logger.error(`${answerFileName} not found`);
-      continue;
+    if (!isAnswerFileExists) {
+      const pdfFile = answerFilePDFs.find((file) => {
+        return file
+          .normalize("NFC")
+          .endsWith(`${subject}`.trim().normalize("NFC") + ".pdf");
+      });
+
+      if (!pdfFile) {
+        Logger.error(`${answerFileName} not found, ${subject}`);
+        continue;
+      } else {
+        answerFilePath = pdfFile;
+        answerType = "pdf";
+      }
+    } else {
+      answerFilePath = path.join(ANSWERS_DIR, answerFileName);
+      answerType = "png;";
     }
 
     const subDirs = (await readDirectories(path.join(TARGET_DIR, dir))).map(
       (item) =>
         item === "default" ? (subject === "공통" ? section : subject) : item
     );
+    console.log(answerFilePath);
 
     taskQueue.push({
       id: dir,
       subjects: subDirs,
-      answerFilePath: path.join(ANSWERS_DIR, answerFileName),
+      answerFilePath: answerFilePath,
+      answerType: answerType,
       outputFilePath: path.join(TARGET_DIR, dir),
       isDebug: false,
     });

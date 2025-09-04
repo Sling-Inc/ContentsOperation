@@ -29,9 +29,9 @@ const CONFIG = {
   },
 };
 
-function getVerticesBox(vertices) {
-  const xCoords = vertices.map((v) => v.x);
-  const yCoords = vertices.map((v) => v.y);
+function getVerticesBox(vertices, scale = 1) {
+  const xCoords = vertices.map((v) => (v.x || 0) * scale);
+  const yCoords = vertices.map((v) => (v.y || 0) * scale);
   return [
     Math.min(...xCoords),
     Math.min(...yCoords),
@@ -40,9 +40,12 @@ function getVerticesBox(vertices) {
   ];
 }
 
-function isSymbolInBbox(symbol, bbox) {
+function isSymbolInBbox(symbol, bbox, scale = 1) {
   const [bx1, by1, bx2, by2] = bbox;
-  const [sx1, sy1, sx2, sy2] = getVerticesBox(symbol.boundingBox.vertices);
+  const [sx1, sy1, sx2, sy2] = getVerticesBox(
+    symbol.boundingBox.vertices,
+    scale
+  );
   return sx1 < bx2 && sx2 > bx1 && sy1 < by2 && sy2 > by1;
 }
 
@@ -50,7 +53,7 @@ async function eraseItemNumber(
   cropBuffer,
   item,
   ocrDataForPage,
-  { isFirstItem, uniqueId, examName, subjectName }
+  { isFirstItem, uniqueId, examName, subjectName, scale = 1 }
 ) {
   if (!ocrDataForPage?.fullTextAnnotation) {
     return cropBuffer;
@@ -63,13 +66,13 @@ async function eraseItemNumber(
       .flatMap((w) => w.symbols) || [];
 
   const symbolsInBbox = allSymbolsOnPage
-    .filter((s) => isSymbolInBbox(s, item.bbox))
+    .filter((s) => isSymbolInBbox(s, item.bbox, scale))
     .sort((a, b) => {
-      const [ax1] = getVerticesBox(a.boundingBox.vertices);
-      const [bx1] = getVerticesBox(b.boundingBox.vertices);
-      if (Math.abs(ax1 - bx1) > 5) return ax1 - bx1;
-      const [, ay1] = getVerticesBox(a.boundingBox.vertices);
-      const [, by1] = getVerticesBox(b.boundingBox.vertices);
+      const [ax1] = getVerticesBox(a.boundingBox.vertices, scale);
+      const [bx1] = getVerticesBox(b.boundingBox.vertices, scale);
+      if (Math.abs(ax1 - bx1) > 5 * scale) return ax1 - bx1;
+      const [, ay1] = getVerticesBox(a.boundingBox.vertices, scale);
+      const [, by1] = getVerticesBox(b.boundingBox.vertices, scale);
       return ay1 - by1;
     });
 
@@ -77,7 +80,7 @@ async function eraseItemNumber(
   let matchedSymbols = [];
 
   const topLeftAreaSymbols = symbolsInBbox.filter((s) => {
-    const [symbolX1, symbolY1] = getVerticesBox(s.boundingBox.vertices);
+    const [symbolX1, symbolY1] = getVerticesBox(s.boundingBox.vertices, scale);
     const isWithinTop = symbolY1 - item.bbox[1] < CONFIG.NUMBER_SEARCH_AREA.TOP;
     const isWithinLeft =
       symbolX1 - item.bbox[0] < CONFIG.NUMBER_SEARCH_AREA.LEFT;
@@ -99,9 +102,18 @@ async function eraseItemNumber(
       for (let j = i + 1; j < topLeftAreaSymbols.length; j++) {
         const prevSymbol = potentialMatch[potentialMatch.length - 1];
         const currentSymbol = topLeftAreaSymbols[j];
-        const [, py1, , py2] = getVerticesBox(prevSymbol.boundingBox.vertices);
-        const [cx1, cy1] = getVerticesBox(currentSymbol.boundingBox.vertices);
-        const [, , px2] = getVerticesBox(prevSymbol.boundingBox.vertices);
+        const [, py1, , py2] = getVerticesBox(
+          prevSymbol.boundingBox.vertices,
+          scale
+        );
+        const [cx1, cy1] = getVerticesBox(
+          currentSymbol.boundingBox.vertices,
+          scale
+        );
+        const [, , px2] = getVerticesBox(
+          prevSymbol.boundingBox.vertices,
+          scale
+        );
 
         const isSameLine = Math.abs(py1 - cy1) < (py2 - py1) / 2;
         const isAdjacent = cx1 - px2 < (py2 - py1) * 2;
@@ -132,9 +144,9 @@ async function eraseItemNumber(
       cropBuffer
     ).metadata();
     const allVertices = matchedSymbols.flatMap((s) => s.boundingBox.vertices);
-    const [nx1, ny1, nx2, ny2] = getVerticesBox(allVertices);
+    const [nx1, ny1, nx2, ny2] = getVerticesBox(allVertices, scale);
 
-    const padding = 2;
+    const padding = 2 * scale;
     const overlayLeft = Math.max(0, Math.round(nx1 - item.bbox[0]) - padding);
     const overlayTop = Math.max(0, Math.round(ny1 - item.bbox[1]) - padding);
     const overlayWidth = Math.round(nx2 - nx1) + padding * 2;
@@ -231,10 +243,10 @@ async function createFinalImage(
     maxHeight = CONFIG.MAX_HEIGHT.PASSAGE;
   } else if (isMath) {
     bottomPadding = CONFIG.PADDING.BOTTOM_MATH;
-    maxHeight = 5000;
+    maxHeight = CONFIG.MAX_HEIGHT.MATH;
   } else {
     bottomPadding = CONFIG.PADDING.BOTTOM_DEFAULT;
-    maxHeight = 4000;
+    maxHeight = CONFIG.MAX_HEIGHT.DEFAULT;
   }
 
   let paddedBuffer = await sharp(resizedBuffer)
@@ -264,7 +276,7 @@ async function createFinalImage(
   return paddedBuffer;
 }
 
-async function processBboxFile(bboxFile, { ocrDir }) {
+async function processBboxFile(bboxFile, { ocrDir, scale = 1, newImageDir }) {
   const subjectPath = path.dirname(bboxFile);
   const subjectName = path.basename(subjectPath);
   const examPath = path.dirname(subjectPath);
@@ -306,8 +318,14 @@ async function processBboxFile(bboxFile, { ocrDir }) {
 
     for (const [index, item] of items.entries()) {
       try {
-        const [x1, y1, x2, y2] = item.bbox;
-        const imagePath = item.imagePath;
+        const [x1, y1, x2, y2] = item.bbox.map((coord) => coord * scale);
+        let imagePath = item.imagePath;
+
+        if (newImageDir) {
+          const pageFileName = path.basename(imagePath);
+          imagePath = path.join(newImageDir, examName, pageFileName);
+        }
+
         await fs.access(imagePath);
 
         let cropBuffer = await sharp(imagePath)
@@ -315,12 +333,12 @@ async function processBboxFile(bboxFile, { ocrDir }) {
             left: Math.round(x1),
             top: Math.round(y1),
             width: Math.round(x2 - x1),
-            height: Math.round(y2 - y1) + 2,
+            height: Math.round(y2 - y1) + 2 * scale,
           })
           .png()
           .toBuffer();
 
-        const ocrFileName = `${path.basename(imagePath, ".png")}.json`;
+        const ocrFileName = `${path.basename(item.imagePath, ".png")}.json`;
         const ocrFilePath = path.join(ocrDir, examName, ocrFileName);
 
         if (!ocrDataCache[ocrFilePath]) {
@@ -335,12 +353,20 @@ async function processBboxFile(bboxFile, { ocrDir }) {
         }
 
         const ocrDataForPage = ocrDataCache[ocrFilePath];
-        cropBuffer = await eraseItemNumber(cropBuffer, item, ocrDataForPage, {
-          isFirstItem: index === 0,
-          uniqueId,
-          examName,
-          subjectName,
-        });
+        const scaledItem = { ...item, bbox: [x1, y1, x2, y2] };
+
+        cropBuffer = await eraseItemNumber(
+          cropBuffer,
+          scaledItem,
+          ocrDataForPage,
+          {
+            isFirstItem: index === 0,
+            uniqueId,
+            examName,
+            subjectName,
+            scale,
+          }
+        );
 
         cropBuffers.push(cropBuffer);
       } catch (e) {
@@ -351,9 +377,14 @@ async function processBboxFile(bboxFile, { ocrDir }) {
     }
 
     if (cropBuffers.length > 0) {
+      const itemId = uniqueId.split("-")[1];
+      const isEnglishListening =
+        subjectName === "영어" && (itemId === "16" || itemId === "17");
+
       const finalImageBuffer = await createFinalImage(cropBuffers, {
         isMath: subjectName === "수학",
-        isPassageProblem: passageProblemIds.has(uniqueId.split("-")[1]),
+        isPassageProblem:
+          passageProblemIds.has(itemId) || isEnglishListening,
         isExplanation,
       });
       const finalImagePath = path.join(imagesOutputDir, `${uniqueId}.png`);
@@ -388,10 +419,27 @@ async function main() {
           "Path to a text file containing a list of specific exam folder names to process (one per line)",
         type: "string",
       })
+      .option("scale", {
+        describe:
+          "Scaling factor for bbox coordinates for higher resolution images",
+        type: "number",
+        default: 1,
+      })
+      .option("newImageDir", {
+        describe:
+          "Path to the new high-resolution image directory to be used instead of the one in bbox.json",
+        type: "string",
+      })
       .demandCommand(2, "You must provide both <inputDir> and <ocrDir>.")
       .help().argv;
 
-    const { inputDir, ocrDir, targetFile } = argv;
+    const { inputDir, ocrDir, targetFile, scale, newImageDir } = argv;
+
+    if (scale && scale !== 1) {
+      Logger.info(`Applying scale factor: ${scale}`);
+      CONFIG.NUMBER_SEARCH_AREA.TOP *= scale;
+      CONFIG.NUMBER_SEARCH_AREA.LEFT *= scale;
+    }
 
     let targetExams = null;
     if (targetFile) {
@@ -415,7 +463,9 @@ async function main() {
 
     if (targetExams) {
       bboxFiles = bboxFiles.filter((file) => {
-        const examName = path.basename(path.dirname(path.dirname(file))).normalize();
+        const examName = path
+          .basename(path.dirname(path.dirname(file)))
+          .normalize();
         return targetExams.some((target) => target.normalize() === examName);
       });
       Logger.info(
@@ -440,7 +490,7 @@ async function main() {
         const examName = path.basename(path.dirname(path.dirname(bboxFile)));
         const subjectName = path.basename(path.dirname(bboxFile));
         Logger.info(`[Worker] Processing: ${examName}/${subjectName}`);
-        await processBboxFile(bboxFile, { ocrDir });
+        await processBboxFile(bboxFile, { ocrDir, scale, newImageDir });
       }
     };
 

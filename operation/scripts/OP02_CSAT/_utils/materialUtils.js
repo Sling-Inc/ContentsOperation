@@ -91,6 +91,8 @@ export function getMaterialInfo(
   year = Number(year);
   month = Number(month);
   grade = Number(grade);
+  section = section.normalize("NFC");
+  subject = subject.normalize("NFC");
 
   const sectionInfo = SECTIONS[section];
   const subjectInfo = sectionInfo.subjects[subject];

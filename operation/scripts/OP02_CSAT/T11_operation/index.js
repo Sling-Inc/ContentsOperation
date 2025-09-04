@@ -10,22 +10,19 @@ import { F003_createMetadata } from "./F003_createMetadata.js";
 
 import { F010_createIds } from "./F010_createIds.js";
 import { F011_uploadToFirebase } from "./F011_uploadToFirebase.js";
+import { F014_updateVisible } from "./F014_updateVisible.js";
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 
-const TARGET_DIR =
-  "/Users/jgj/Documents/toy/contentsOperation/workspace/20250903_01/D01_postprocess_results";
-
-const ANSWERS_DIR =
-  "/Users/jgj/Documents/toy/contentsOperation/workspace/20250903_01/_answer";
-
 const TAGS = "202509_CSAT";
 
+const ROOT = "/Users/jgj/Documents/toy/contentsOperation/workspace/20250903_03";
+
+const TARGET_DIR = `${ROOT}/D01_postprocess_results`;
+const ANSWERS_DIR = `${ROOT}/_answer`;
+const AUDIO_DIR = `${ROOT}/_audio`;
 const THUMBNAIL_DIR =
   "/Users/jgj/Documents/toy/contentsOperation/operation/scripts/OP02_CSAT/_thumbnails";
-
-const AUDIO_DIR =
-  "/Users/jgj/Documents/toy/contentsOperation/workspace/20250903_01/_audio";
 
 const choices = {
   ["D000"]: "D000. Check Thumbnails",
@@ -35,6 +32,7 @@ const choices = {
 
   ["F010"]: "F010. Create ids",
   ["F011"]: "F011. Upload to Firebase",
+  ["F014"]: "F014. Update Visible",
 };
 
 async function main() {
@@ -61,6 +59,10 @@ async function main() {
         break;
       case choices["F011"]:
         await F011_uploadToFirebase(TARGET_DIR, TAGS);
+        break;
+
+      case choices["F014"]:
+        await F014_updateVisible(TAGS);
         break;
     }
   });

@@ -263,6 +263,9 @@ const CONFIGS = {
   problem_2025_09_2_교육청_영어_공통: {
     skipStartSeconds: 142,
   },
+  problem_2025_09_3_평가원_영어_공통: {
+    skipStartSeconds: 208,
+  },
 };
 
 export async function F002_cutEnglishAudio(TARGET_DIR, AUDIO_DIR) {

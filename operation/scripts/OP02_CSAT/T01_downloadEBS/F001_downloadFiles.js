@@ -5,11 +5,6 @@ import { Logger } from "#operation/utils/logger.js";
 import { downloadMockTestFiles } from "#operation/utils/crawler/EBS/mockTest.js";
 import { getInfoFromEbsMockTestFile } from "#root/operation/scripts/OP02_CSAT/_utils/ebsFileUtils.js";
 
-const targetYear = "2025";
-const targetMonth = "09";
-
-const TARGET_DIR_NAME = "20250903_03";
-
 async function processFiles(
   newlyDownloadedFilePaths,
   outputDir,
@@ -62,24 +57,24 @@ async function processFiles(
   }
 }
 
-export async function F001_downloadFiles(mockTestCodePath) {
+export async function F001_downloadFiles(
+  mockTestCodePath,
+  downloadRootDir,
+  outputDir,
+  targetYear,
+  targetMonth
+) {
   Logger.section("EBS 모의고사 파일 다운로드 및 처리 시작");
 
   const mockTestInfo = JSON.parse(await fs.readFile(mockTestCodePath, "utf8"));
   const targetIRecords = mockTestInfo[targetYear]?.[targetMonth];
 
   if (targetIRecords) {
-    const outputDir = path.join(process.cwd(), "workspace", TARGET_DIR_NAME);
     await fs.mkdir(outputDir, { recursive: true });
 
     for (const [grade, irecord] of Object.entries(targetIRecords)) {
       const targetFolder = `${targetYear}_${targetMonth}_${grade}`;
-      const downloadDir = path.join(
-        process.cwd(),
-        "workspace",
-        "downloads",
-        targetFolder
-      );
+      const downloadDir = path.join(downloadRootDir, targetFolder);
 
       Logger.info(`다운로드 경로: ${downloadDir}`);
       Logger.info(`결과 저장 경로: ${outputDir}`);
