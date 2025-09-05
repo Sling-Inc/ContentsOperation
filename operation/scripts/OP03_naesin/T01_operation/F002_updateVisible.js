@@ -1,7 +1,7 @@
 import { getFirebaseAdmin } from "#operation/credentials/firebaseCredentials.js";
 import { Logger } from "#operation/utils/logger.js";
 
-const TAG_NAESIN = "202501_naesin";
+const TAG_NAESIN = "202509_naesin_test";
 
 export async function F002_updateVisible() {
   const { admin } = await getFirebaseAdmin();

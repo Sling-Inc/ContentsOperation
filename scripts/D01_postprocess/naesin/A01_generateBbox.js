@@ -223,8 +223,8 @@ async function main() {
         }
 
         if (allAdjustedItems.length > 0) {
-          const subjectOutputDir = path.join(outputDir, examName, subjectName);
-          await fs.mkdir(subjectOutputDir, { recursive: true });
+          const examOutputDir = path.join(outputDir, examName);
+          await fs.mkdir(examOutputDir, { recursive: true });
 
           const finalBboxData = allAdjustedItems.map((item) => {
             const group = groupMap.get(item.id);
@@ -241,6 +241,9 @@ async function main() {
             if (group?.problemIds) {
               finalItem.problemIds = group.problemIds;
             }
+            if (group?.score !== undefined) {
+              finalItem.score = group.score;
+            }
             return finalItem;
           });
 
@@ -249,7 +252,7 @@ async function main() {
             bbox: finalBboxData,
           };
 
-          const outputJsonPath = path.join(subjectOutputDir, "bbox.json");
+          const outputJsonPath = path.join(examOutputDir, "bbox.json");
           await fs.writeFile(
             outputJsonPath,
             JSON.stringify(finalResult, null, 2)
@@ -257,7 +260,7 @@ async function main() {
           Logger.info(`Saved final bbox JSON to ${outputJsonPath}`);
         } else {
           Logger.warn(
-            `No items were processed for ${examName} - ${subjectName}, skipping JSON output.`
+            `No items were processed for ${examName}, skipping JSON output.`
           );
         }
       }

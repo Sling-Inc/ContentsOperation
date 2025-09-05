@@ -7,7 +7,7 @@ import { Logger } from "#operation/utils/logger.js";
 
 const history = {
   "202509_naesin_test": {
-    dir: "/Users/sling/workspace/ContentsOperation/workspace_1/D01_postprocess_results",
+    dir: "/Users/sling/workspace/ContentsOperation/workspace_2학년_수학__원안지/D01_postprocess_results",
   },
 };
 

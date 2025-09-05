@@ -9,7 +9,7 @@ import { Logger } from "#operation/utils/logger.js";
 
 const history = {
   "202509_naesin_test": {
-    dir: "/Users/sling/workspace/ContentsOperation/workspace_1/D01_postprocess_results",
+    dir: "/Users/sling/workspace/ContentsOperation/workspace_2학년_수학__원안지/D01_postprocess_results",
   },
 };
 
@@ -197,6 +197,11 @@ export async function F001_uploadToFirebase() {
     const problems = contents_raw
       .filter((box) => box.type === "question")
       .sort((a, b) => Number(a.id) - Number(b.id));
+    
+    // perfectScore 계산 (score 총합)
+    const perfectScore = problems.reduce((total, problem) => {
+      return total + (problem.score || 1); // score가 없으면 기본값 1
+    }, 0);
 
     for (const box of problems) {
       const id = box.id;
@@ -217,6 +222,12 @@ export async function F001_uploadToFirebase() {
         }
       }
 
+      // 답이 없는 경우 narrative 타입으로 설정
+      const hasAnswer = answerString && answerString.trim() !== "";
+      const problemType = hasAnswer 
+        ? (box.choiceCount === 5 ? "multipleChoice" : "multipleChoice")
+        : "narrative";
+
       problemInfoMap[id] = {
         answer: answerString,
         audioURL: null,
@@ -231,8 +242,8 @@ export async function F001_uploadToFirebase() {
         imageURL: "",
         passageIds: [],
         problemNumber: 0,
-        score: 1,
-        type: box.choiceCount === 5 ? "multipleChoice" : "multipleChoice_4",
+        score: box.score || 1,
+        type: problemType,
       };
 
       // 페이지 배치 (passage 우측)
@@ -413,7 +424,7 @@ export async function F001_uploadToFirebase() {
           alsId: examPaperId,
           title: title,
           numberOfProblems: problems.length,
-          perfectScore: problems.length,
+          perfectScore: perfectScore,
           hideExplanationBeforeGrade: false,
         },
       },
@@ -441,9 +452,9 @@ export async function F001_uploadToFirebase() {
       highSchoolYear: null,
 
       problemCount: problemCount,
-      perfectScore: problemCount,
+      perfectScore: perfectScore,
 
-      supervisor: null,
+      supervisor: "school",
       materialId: materialId,
 
       duration: null,

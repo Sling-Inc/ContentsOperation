@@ -97,7 +97,12 @@ log_success "A01 OCR용 완료"
 # A02. dotsOCR 레이아웃 분석
 log_info "A02: dotsOCR 레이아웃 분석"
 log_info "VM에 이미지 업로드 중..."
-gcloud compute scp --recurse "$WORKSPACE_DIR/A01_images_layout/*" dots-ocr-l4-test-vm:~/input/ --zone=asia-northeast3-a
+# 한글 파일명 처리를 위해 find 명령어 사용
+find "$WORKSPACE_DIR/A01_images_layout" -type d -name "*" | while read -r dir; do
+    if [ "$dir" != "$WORKSPACE_DIR/A01_images_layout" ]; then
+        gcloud compute scp --recurse "$dir" dots-ocr-l4-test-vm:~/input/ --zone=asia-northeast3-a
+    fi
+done
 
 log_info "VM에서 dotsOCR 분석 실행 중..."
 gcloud compute ssh dots-ocr-l4-test-vm --zone=asia-northeast3-a --command="~/process_all_images.sh -p 8 -m 2000000"

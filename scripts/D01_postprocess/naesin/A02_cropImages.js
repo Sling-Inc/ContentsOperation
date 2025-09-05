@@ -10,26 +10,31 @@ async function main() {
     const args = process.argv.slice(2);
     const [inputDir] = args;
     const outputDir = inputDir; // For this script, output is within the input dir structure
-    const imagesDir = path.resolve(inputDir, "../../A01_images_ocr/420dpi");
+    const imagesDir = path.resolve(inputDir, "../A01_images_ocr/420dpi");
     Logger.info(`Using input dir: ${inputDir}`);
     Logger.info(`Using images dir: ${imagesDir}`);
     Logger.info(`Using output dir: ${outputDir}`);
 
-    const bboxFiles = await glob(path.join(inputDir, "**/**/bbox.json"));
+    const bboxFiles = await glob(path.join(inputDir, "**/bbox.json"));
     Logger.info(`Found ${bboxFiles.length} bbox.json files.`);
 
     for (const bboxFile of bboxFiles) {
-      const subjectPath = path.dirname(bboxFile);
-      const subjectName = path.basename(subjectPath);
-      const examPath = path.dirname(subjectPath);
+      const examPath = path.dirname(bboxFile);
       const examName = path.basename(examPath);
       const imageDirForExam = path.join(imagesDir, examName);
-      Logger.section(`Processing Exam: ${examName}, Subject: ${subjectName}`);
+      Logger.section(`Processing Exam: ${examName}`);
 
       const bboxContent = JSON.parse(await fs.readFile(bboxFile, "utf-8"));
       const allAdjustedItems = bboxContent.bbox || [];
 
-      const imagesOutputDir = path.join(subjectPath, "images");
+      // passage에 딸린 문제 ID들을 추출
+      const passageProblemIds = new Set(
+        allAdjustedItems
+          .filter((item) => item.type === "passage")
+          .flatMap((passage) => passage.problemIds || [])
+      );
+
+      const imagesOutputDir = path.join(examPath, "images");
       await fs.mkdir(imagesOutputDir, { recursive: true });
 
       const itemsById = allAdjustedItems.reduce((acc, item) => {
@@ -83,7 +88,7 @@ async function main() {
             currentHeight += metadatas[i].height;
           }
 
-          const finalImageBuffer = await sharp({
+          const stitchedBuffer = await sharp({
             create: {
               width: maxWidth,
               height: totalHeight,
@@ -95,8 +100,55 @@ async function main() {
             .png()
             .toBuffer();
 
-          const finalImagePath = path.join(imagesOutputDir, `${uniqueId}.png`);
-          await fs.writeFile(finalImagePath, finalImageBuffer);
+          // CSE와 동일한 여백 처리 로직
+          const trimmedBuffer = await sharp(stitchedBuffer).trim().toBuffer();
+          const { width: trimmedWidth } = await sharp(trimmedBuffer).metadata();
+
+          const extendedBuffer = await sharp(trimmedBuffer)
+            .extend({
+              right: Math.max(0, maxWidth - trimmedWidth),
+              background: { r: 255, g: 255, b: 255, alpha: 1 },
+            })
+            .toBuffer();
+
+          const resizedBuffer = await sharp(extendedBuffer)
+            .resize({ width: 1720 })
+            .png()
+            .toBuffer();
+
+          const [type, id] = uniqueId.split("-");
+          const isPassage = type === "passage";
+          const isPassageProblem = passageProblemIds.has(id);
+          
+          // passage에 딸린 문제는 더 작은 높이 사용
+          const bottomPadding = isPassage ? 1000 : (isPassageProblem ? 1000 : 2000);
+          const maxHeight = isPassage ? 2000 : (isPassageProblem ? 2000 : 4000);
+
+          let paddedBuffer = await sharp(resizedBuffer)
+            .extend({
+              top: 140,
+              bottom: bottomPadding,
+              left: 140,
+              right: 140,
+              background: { r: 255, g: 255, b: 255, alpha: 1 },
+            })
+            .png()
+            .toBuffer();
+
+          const metadata = await sharp(paddedBuffer).metadata();
+          if (metadata.height < maxHeight) {
+            paddedBuffer = await sharp(paddedBuffer)
+              .extend({
+                bottom: maxHeight - metadata.height,
+                background: { r: 255, g: 255, b: 255, alpha: 1 },
+              })
+              .png()
+              .toBuffer();
+          }
+
+          const itemType = type.replace("problem", "question");
+          const finalImagePath = path.join(imagesOutputDir, `${itemType}_${id}.png`);
+          await fs.writeFile(finalImagePath, paddedBuffer);
           Logger.debug(
             `Saved stitched image for ${uniqueId} to ${finalImagePath}`
           );
