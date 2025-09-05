@@ -1,8 +1,13 @@
 import fs from "fs/promises";
 import path from "path";
 import pLimit from "p-limit";
+import { PDFDocument } from "pdf-lib";
 
-import { readDirectories, readFilesWithExtR } from "#operation/utils/file.js";
+import {
+  existsFile,
+  readDirectories,
+  readFilesWithExtR,
+} from "#operation/utils/file.js";
 import { runGemini } from "#operation/utils/gemini.js";
 
 import { STANDARD } from "./standardName.js";
@@ -76,6 +81,14 @@ const config = {
               ],
             },
 
+            reason: {
+              description: `
+페이지 pageType의 unknown 타입 결정 이유
+* 페이지의 pageType을 unknown으로 결정한 이유를 반환합니다.
+* 나머지 pageType일 경우 비워두세요.`,
+              type: "string",
+            },
+
             year: {
               description: `
 페이지의 년도
@@ -115,18 +128,24 @@ const config = {
             subject: {
               description: `
 페이지의 주제
-* 페이지에 있는 모든 과목 정보를 모두 반환하세요.
-** pageType이 answer일 경우, 한 페이지에 여러 과목의 정답이 있는 경우만 해당 과목의 정보를 전부 반환해야 합니다.
-*** 파일 이름(경로가 아닙니다)에 과목이 여러개 또는 과목 정보가 없는 파일만 이럴 경우가 있습니다.
-** pageType이 answer가 아닐 경우 반드시 1개의 과목만 있어야 합니다.
-* 정보, 일본어 등 시험이 치뤄 진 실제 과목 명입니다.
+* 정보, 일본어 등 시험이 치뤄 진 실제 subject를 명입니다.
+** 절대 지문이나 문제의 내용으로 subject를 판단하지 마세요. subject는 오직 페이지의 헤더 등 시험지/답안지에서 문제/지문 외 별도로 제공되는 추가 데이터에서만 식별 가능합니다.
+** pageType이 answer일 경우, 한 페이지에 여러 시험의 정답이 있는 경우만 해당 시험의 subject를 정보를 전부 반환해야 합니다.
+*** 파일 이름(경로가 아닙니다)에 시험의 subject이 여러개 또는 subject를 정보가 없는 파일만 이럴 경우가 있습니다.
+** pageType이 answer가 아닐 경우 반드시 1개의 subject를만 있어야 합니다.
+subject를 중복으로 식별하지 마세요.
 * 괄호 - 숫자는 무시하세요. ex) 생명과학I(3) 에서 (3)은 무시하세요.
 * subject에 I, Ⅱ 등의 숫자 문자 또는 숫자가 있는 경우는 1, 2 숫자로 바꾸어야 합니다, 
   * ex) 수학Ⅱ -> 수학2, 물리I -> 물리1
 * enum 내 값으로 판단이 가능한 경우는 unknown으로 설정하세요.
 다음은 자주 실수가 발생하는 경우입니다. 잘 확인하세요.
 * 생활로 시작한다고 생활과 과학으로 판단해서는 안 됩니다.
-다음은 주제와 동의어 사전 정보입니다. (subject - 동의어 list로 되어 있으며, 만약 과목명이 동의어 중 하나라면 그 subject key 를 사용하세요.)
+* 국어 시험이지만, 지문의 내용이 과학 관련 이야기라고 과학으로 절대 식별하지 마세요.
+* 정답지가 아닌 시험지는 무조건 하나의 subject에만 매칭됩니다 절대 두개 이상의 subject에 매칭되지 않습니다.
+* 영어Ⅱ 시험지는 subject가 "영어"입니다.
+
+다음은 주제와 동의어 사전 정보입니다. (subject - 동의어 list로 되어 있으며, 만약 subject명이 동의어 중 하나라면 그 subject key 를 사용하세요.)
+* 동의어 사전 등으로도 subject를 정확히 알 수 없다면 unknown으로 설정하세요.
 ${JSON.stringify(
   Object.fromEntries(
     Object.entries(STANDARD).map(([key, value]) => [key, value.synonym])
@@ -162,9 +181,11 @@ export async function F030_getPageMetadata(TARGET_DIR) {
     const school = path.basename(schoolPath).normalize("NFC");
 
     const pdfFilePaths = await readFilesWithExtR(schoolPath, {
-      extensions: [".pdf"],
+      extensions: [".pdf", ".PDF"],
       fullPath: false,
     });
+
+    const resultPath = path.join(schoolPath, "__pdfMetadata.json");
 
     Logger.section(
       `[${school}] 페이지 메타데이터 추출 시작, pdf 파일 ${pdfFilePaths.length}개`
@@ -173,48 +194,65 @@ export async function F030_getPageMetadata(TARGET_DIR) {
     const tasks = [];
     const results = [];
 
+    Logger.startProgress(`[ ${school}] ... (0/${pdfFilePaths.length})]`);
     for (const pdfFilePath of pdfFilePaths) {
       tasks.push(
         limit(async () => {
-          const pdfFileData = await fs.readFile(
-            path.join(schoolPath, pdfFilePath)
-          );
-          const result = await runGemini({
-            model: LLM_MODEL,
-            config: config,
-            contents: [
-              {
-                role: "user",
-                parts: [
-                  {
-                    text: PROMPT.replace("{{schoolName}}", school).replace(
-                      "{{pdfPath}}",
-                      pdfFilePath
-                    ),
-                  },
+          const fullPdfPath = path.join(schoolPath, pdfFilePath);
+          const pdfFileData = await fs.readFile(fullPdfPath);
 
-                  {
-                    inlineData: {
-                      mimeType: "application/pdf",
-                      data: Buffer.from(pdfFileData).toString("base64"),
+          try {
+            await PDFDocument.load(pdfFileData);
+          } catch (error) {
+            Logger.warn(
+              `[${school}] PDF 파일(${pdfFilePath})을 열 수 없어 건너뜁니다. 파일이 손상되었거나 암호화되었을 수 있습니다.`
+            );
+            return; // 유효하지 않은 파일은 건너뜁니다.
+          }
+
+          const result = await runGemini(
+            {
+              model: LLM_MODEL,
+              config: config,
+              contents: [
+                {
+                  role: "user",
+                  parts: [
+                    {
+                      text: PROMPT.replace("{{schoolName}}", school).replace(
+                        "{{pdfPath}}",
+                        pdfFilePath
+                      ),
                     },
-                  },
-                ],
-              },
-            ],
-          });
+
+                    {
+                      inlineData: {
+                        mimeType: "application/pdf",
+                        data: Buffer.from(pdfFileData).toString("base64"),
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+            false,
+            { LogMessage: pdfFilePath }
+          );
 
           results.push({
             filePath: pdfFilePath,
             result: result.response,
           });
+          Logger.updateProgress(
+            `[ ${school}] ... (${results.length}/${pdfFilePaths.length})]`
+          );
         })
       );
     }
 
     await Promise.all(tasks);
+    Logger.endProgress();
 
-    const resultPath = path.join(schoolPath, "__pdfMetadata.json");
     fs.writeFile(
       path.join(schoolPath, "__pdfMetadata.json"),
       JSON.stringify(results, null, 2)

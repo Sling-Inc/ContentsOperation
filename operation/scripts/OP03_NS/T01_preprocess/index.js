@@ -9,10 +9,10 @@ import { F040_createPdfWithMetadata } from "./F040_createPdfWithMetadata.js";
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 
 const TARGET_DIR =
-  "/Users/jgj/Documents/toy/contentsOperation/workspace/20250905_ns2/_raw";
+  "/Users/jgj/Documents/toy/contentsOperation/workspace/20250905_ns01/_raw";
 
 const OUTPUT_DIR =
-  "/Users/jgj/Documents/toy/contentsOperation/workspace/20250905_ns2/00_pdf";
+  "/Users/jgj/Documents/toy/contentsOperation/workspace/20250905_ns01/00_pdf";
 
 const choices = {
   ["001"]: "001. Hello World",

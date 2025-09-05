@@ -13,22 +13,29 @@ const genAI = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 
 export async function runGemini(
   /** @type {import("@google/genai").GenerateContentParameters} */ generateContentParameters,
-  isDebug = false
+  isDebug = false,
+  config = {}
 ) {
+  const { LogMessage } = config;
   if (isDebug) Logger.section("LLM 요청 수행...");
 
-  const promptTokenCount = await genAI.models.countTokens({
-    model: generateContentParameters.model,
-    contents: generateContentParameters.contents,
-  });
-
   if (isDebug) {
-    Logger.debug(`* 모델: ${generateContentParameters.model}`);
-    Logger.debug(`* 프롬프트 토큰 수: ${promptTokenCount.totalTokens}`);
+    try {
+      const promptTokenCount = await genAI.models.countTokens({
+        model: generateContentParameters.model,
+        contents: generateContentParameters.contents,
+      });
+      Logger.debug(`* 모델: ${generateContentParameters.model}`);
+      Logger.debug(`* 프롬프트 토큰 수: ${promptTokenCount.totalTokens}`);
+    } catch (error) {
+      Logger.warn(`[${LogMessage}] 토큰 사용량 조회 실패:\n ${error.message}`);
+    }
   }
 
-  let LLMResponse = null;
   let totalTime = 0;
+  let LLMResponse = null;
+  let response = null;
+
   for (let i = 1; i <= LLM_RETRY_COUNT; i++) {
     const startTime = Date.now();
 
@@ -41,13 +48,16 @@ export async function runGemini(
         Logger.info(`[${i}/${LLM_RETRY_COUNT}] LLM 요청 성공 `);
       }
       totalTime += Date.now() - startTime;
+      const responseText = LLMResponse?.candidates[0]?.content?.parts[0]?.text;
+      response = parseLlmJsonResponse(responseText);
       break;
     } catch (error) {
-      if (isDebug) {
-        Logger.warn(
-          `[${i}/${LLM_RETRY_COUNT}] LLM 요청 실패:\n ${error.message}`
-        );
-      }
+      Logger.warn(
+        `[${i}/${LLM_RETRY_COUNT}]${
+          LogMessage ? `[${LogMessage}]` : ""
+        } LLM 요청 실패:\n ${error.message}`
+      );
+
       if (i === LLM_RETRY_COUNT) throw error;
 
       await new Promise((resolve) => setTimeout(resolve, LLM_RETRY_DELAY));
@@ -74,10 +84,8 @@ export async function runGemini(
     Logger.endSection();
   }
 
-  const responseText = LLMResponse.candidates[0].content.parts[0].text;
-
   return {
-    response: parseLlmJsonResponse(responseText),
+    response: response,
     tokenUsage: LLMResponse.usageMetadata?.totalTokenCount,
     timeUsage: totalTime,
   };

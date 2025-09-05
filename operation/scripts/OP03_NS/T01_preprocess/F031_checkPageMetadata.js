@@ -20,7 +20,8 @@ export async function F031_checkPageMetadata(TARGET_DIR) {
       path.join(schoolPath, "__pdfMetadata.json")
     );
 
-    if (pdfMetadata.length === 0) {
+    if (!Array.isArray(pdfMetadata) || pdfMetadata.length === 0) {
+      Logger.endSection();
       Logger.error(
         `[${school}] __pdfMetadata.json 파일이 없거나 비어있습니다.`
       );
@@ -32,12 +33,12 @@ export async function F031_checkPageMetadata(TARGET_DIR) {
         // 1. subject 검증
         if (page.subject.length === 0) {
           Logger.warn(
-            `[${school}] ${metadata.filePath} subject가 존재하지 않습니다.`
+            `[${school}] ${metadata.filePath} [${page.pageNumber}] subject가 존재하지 않습니다.`
           );
           continue;
         } else if (page.subject.length > 1) {
           Logger.warn(
-            `[${school}] ${metadata.filePath} subject가 여러 개 존재합니다.`
+            `[${school}] ${metadata.filePath} [${page.pageNumber}] :${page.subject} subject가 여러 개 존재합니다.`
           );
           continue;
         }
@@ -45,11 +46,11 @@ export async function F031_checkPageMetadata(TARGET_DIR) {
         for (const subject of page.subject) {
           if (subject === "unknown") {
             Logger.warn(
-              `[${school}] ${metadata.filePath} subject가 unknown입니다.`
+              `[${school}] ${metadata.filePath} [${page.pageNumber}] :${subject} subject가 unknown입니다.`
             );
           } else if (!STANDARD[subject]) {
             Logger.warn(
-              `[${school}] ${metadata.filePath} [${page.subject}] subject가 존재하지 않습니다.`
+              `[${school}] ${metadata.filePath} [${page.pageNumber}] :${subject} subject가 존재하지 않습니다.`
             );
           }
         }
@@ -58,14 +59,14 @@ export async function F031_checkPageMetadata(TARGET_DIR) {
         const grade = Number(page.grade);
         if (grade < 1 || grade > 3) {
           Logger.warn(
-            `[${school}] ${metadata.filePath} [${metadata.grade}] grade가  범위를 벗어납니다.`
+            `[${school}] ${metadata.filePath} [${page.pageNumber}] [${metadata.grade}] grade가  범위를 벗어납니다.`
           );
         }
 
         // 3. pageType 검증
         if (page.pageType === "unknown") {
           Logger.warn(
-            `[${school}] ${metadata.filePath} [${page.pageType}] pageType가 unknown입니다.`
+            `[${school}] ${metadata.filePath} [${page.pageNumber}] [${page.pageType}] pageType가 unknown입니다. \nreason: ${page.reason}`
           );
         }
       }

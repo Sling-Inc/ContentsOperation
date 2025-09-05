@@ -64,6 +64,9 @@ export class ScriptLogger {
     this.__isWriting = false;
     this.__indent_level = 0;
     this.__indent = " ".repeat(4);
+
+    this.__isProgressActive = false;
+    this.__lastProgressMessage = "";
   }
 
   /**
@@ -94,7 +97,7 @@ export class ScriptLogger {
     }
 
     const safeLogName = logName ? logName.replace(/\s+/g, "_") : "";
-    const logFileName = `${this.__getCurrent()}${
+    const logFileName = `${this.__getCurrent()}${ 
       safeLogName ? `_${safeLogName}` : ""
     }.log`;
     const logFilePath = path.join(this.__logPath, logFileName);
@@ -105,7 +108,7 @@ export class ScriptLogger {
       encoding: "utf8",
     });
 
-    const warnLogFileName = `${this.__getCurrent()}_warn${
+    const warnLogFileName = `${this.__getCurrent()}_warn${ 
       safeLogName ? `_${safeLogName}` : ""
     }.log`;
     const warnLogFilePath = path.join(this.__logPath, warnLogFileName);
@@ -127,6 +130,11 @@ export class ScriptLogger {
    * @param {number} [depth]
    */
   log(msg, level = "log", depth = 0, header = true) {
+    if (this.__isProgressActive) {
+      // 진행률 표시줄을 지우고 새 줄에서 로그를 시작
+      process.stdout.write("\r\x1b[2K");
+    }
+
     const { method, color } = this.__getLogInfo(level);
 
     let message = "";
@@ -134,14 +142,20 @@ export class ScriptLogger {
     if (header) {
       message = `[${this.__getCurrent()}][${level
         .toUpperCase()
-        .padEnd(7)}]${this.__indent.repeat(
+        .padEnd(7)}]
+${this.__indent.repeat(
         depth + this.__indent_level
-      )} ${msg}`;
+      )} ${msg}`; 
     } else {
       message = `${msg}`;
     }
 
     console[method](`${color}%s\x1b[0m`, message);
+
+    if (this.__isProgressActive) {
+      // 로그 출력 후 진행률 표시줄을 다시 그림
+      process.stdout.write(this.__lastProgressMessage);
+    }
 
     if (this.__logStream) {
       this.__writeQueue.push({ message, level });
@@ -198,6 +212,40 @@ export class ScriptLogger {
     if (msg) {
       this.log(msg, level);
     }
+  }
+
+  /**
+   * 콘솔의 마지막 줄에 진행률 표시를 시작합니다. 파일에는 기록되지 않습니다.
+   * @param {string} message
+   */
+  startProgress(message) {
+    if (this.__isProgressActive) {
+      this.endProgress(); // 이미 진행 중인 것이 있다면 종료
+    }
+    this.__isProgressActive = true;
+    this.__lastProgressMessage = message;
+    process.stdout.write(message);
+  }
+
+  /**
+   * 현재 진행률 표시줄의 메시지를 업데이트합니다. 파일에는 기록되지 않습니다.
+   * @param {string} message
+   */
+  updateProgress(message) {
+    if (!this.__isProgressActive) return;
+    this.__lastProgressMessage = message;
+    process.stdout.write("\r\x1b[2K" + message);
+  }
+
+  /**
+   * 진행률 표시를 종료합니다. 최종 메시지를 남기고 줄을 바꿉니다. 파일에는 기록되지 않습니다.
+   * @param {string} [message]
+   */
+  endProgress(message = "") {
+    if (!this.__isProgressActive) return;
+    process.stdout.write("\r\x1b[2K" + message + "\n");
+    this.__isProgressActive = false;
+    this.__lastProgressMessage = "";
   }
 
   __processQueue() {

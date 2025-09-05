@@ -23,6 +23,14 @@ export async function F040_createPdfWithMetadata(TARGET_DIR, OUTPUT_DIR) {
       path.join(schoolPath, "__pdfMetadata.json")
     );
 
+    if (!Array.isArray(pdfMetadata) || pdfMetadata.length === 0) {
+      Logger.endSection();
+      Logger.error(
+        `[${school}] __pdfMetadata.json 파일이 없거나 비어있습니다.`
+      );
+      continue;
+    }
+
     // 1. 모든 페이지 정보를 { [groupKey]: [{ pdfFilePath, pageNumber }] } 형태로 그룹화
     const pageGroups = {};
     for (const metadata of pdfMetadata) {

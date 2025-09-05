@@ -77,11 +77,11 @@ export const STANDARD = {
   },
   수학1: {
     section: STANDARD_SECTION.수학,
-    synonym: ["수학1", "수학i", "수힉1"],
+    synonym: ["수학1", "수학i", "수힉1", "수학I", "수학Ⅰ"],
   },
   수학2: {
     section: STANDARD_SECTION.수학,
-    synonym: ["수학2", "수학ii"],
+    synonym: ["수학2", "수학ii", "수학II", "수학Ⅱ"],
   },
   미적분: {
     section: STANDARD_SECTION.수학,
@@ -142,7 +142,16 @@ export const STANDARD = {
 
   영어: {
     section: STANDARD_SECTION.영어,
-    synonym: ["영어과목", "영어1", "영어2", "영어i", "영어ii"],
+    synonym: [
+      "영어과목",
+      "영어1",
+      "영어2",
+      "영어i",
+      "영어ii",
+      "영어I",
+      "영어II",
+      "영어Ⅱ",
+    ],
   },
   "영어 회화": {
     section: STANDARD_SECTION.영어,
@@ -174,7 +183,7 @@ export const STANDARD = {
   },
   "심화 영어": {
     section: STANDARD_SECTION.영어,
-    synonym: ["심화영어", "심화영어1"],
+    synonym: ["심화영어", "심화영어1", "심화영어I", "심화영어II", "심화영어Ⅱ"],
   },
   "심화 영어 독해와 작문": {
     section: STANDARD_SECTION.영어,
@@ -184,6 +193,8 @@ export const STANDARD = {
       "심화영어독해",
       "심화 영어 독해 1",
       "심화영어독해1",
+      "심화영어독해I",
+      ,
     ],
   },
   "직무 영어": {
@@ -237,7 +248,14 @@ export const STANDARD = {
   },
   한국사: {
     section: STANDARD_SECTION.한국사,
-    synonym: ["한국사1", "한국사2", "한국사3"],
+    synonym: [
+      "한국사1",
+      "한국사2",
+      "한국사3",
+      "한국사I",
+      "한국사II",
+      "한국사Ⅱ",
+    ],
   },
   사회문화: {
     section: STANDARD_SECTION.사회탐구,
@@ -247,6 +265,8 @@ export const STANDARD = {
       "사회문화2",
       "사회.문화",
       "사회문화과목",
+      "사회문화II",
+      "사회문화Ⅱ",
     ],
   },
   "정치와 법": {
@@ -356,7 +376,7 @@ export const STANDARD = {
 
   과학: {
     section: STANDARD_SECTION.과학탐구,
-    synonym: ["과학2", "과학3", "과학과"],
+    synonym: ["과학2", "과학3", "과학과", "과학II", "과학Ⅱ"],
   },
   통합과학: {
     section: STANDARD_SECTION.과학탐구,
@@ -368,7 +388,7 @@ export const STANDARD = {
   },
   물리학1: {
     section: STANDARD_SECTION.과학탐구,
-    synonym: ["물리1", "물리학Ⅰ"],
+    synonym: ["물리1", "물리학Ⅰ", "물리I"],
   },
   화학1: {
     section: STANDARD_SECTION.과학탐구,
@@ -384,11 +404,11 @@ export const STANDARD = {
   },
   물리학2: {
     section: STANDARD_SECTION.과학탐구,
-    synonym: ["물리2"],
+    synonym: ["물리2", "물리II", "물리Ⅱ"],
   },
   화학2: {
     section: STANDARD_SECTION.과학탐구,
-    synonym: ["화학ii", "화학Ⅱ"],
+    synonym: ["화학2", "화학ii", "화학II", "화학Ⅱ"],
   },
   생명과학2: {
     section: STANDARD_SECTION.과학탐구,
@@ -400,7 +420,13 @@ export const STANDARD = {
   },
   "생활과 과학": {
     section: STANDARD_SECTION.과학탐구,
-    synonym: ["생활과학", "생활과과학", "생활과 과학2"],
+    synonym: [
+      "생활과학",
+      "생활과과학",
+      "생활과 과학2",
+      "생활과 과학II",
+      "생활과 과학Ⅱ",
+    ],
   },
   융합과학: {
     section: STANDARD_SECTION.과학탐구,
@@ -482,7 +508,7 @@ export const STANDARD = {
   },
   프랑스어: {
     section: STANDARD_SECTION.제2외국어,
-    synonym: ["프랑스어1", "프랑스어2"],
+    synonym: ["프랑스어1", "프랑스어2", "프랑스어I", "프랑스어II", "프랑스어Ⅱ"],
   },
   스페인어: {
     section: STANDARD_SECTION.제2외국어,
@@ -490,7 +516,16 @@ export const STANDARD = {
   },
   중국어: {
     section: STANDARD_SECTION.제2외국어,
-    synonym: ["생활중국어", "생활 중국어", "중국어1", "중국어2"],
+    synonym: [
+      "생활중국어",
+      "생활 중국어",
+      "중국어1",
+      "중국어2",
+      "중국어I",
+      "중국어II",
+      "중국어Ⅰ",
+      "중국어Ⅱ",
+    ],
   },
   "전공기초 일본어": {
     section: STANDARD_SECTION.제2외국어,
@@ -506,7 +541,14 @@ export const STANDARD = {
   },
   일본어: {
     section: STANDARD_SECTION.제2외국어,
-    synonym: ["생활일본어", "일본어1", "일본어2"],
+    synonym: [
+      "생활일본어",
+      "일본어1",
+      "일본어2",
+      "일본어I",
+      "일본어II",
+      "일본어Ⅱ",
+    ],
   },
   러시아어: {
     section: STANDARD_SECTION.제2외국어,
@@ -582,11 +624,11 @@ export const STANDARD = {
   },
   "일본 문화": {
     section: STANDARD_SECTION.제2외국어,
-    synonym: ["일본문화", "일본문화2"],
+    synonym: ["일본문화", "일본문화2", "일본문화I", "일본문화II", "일본문화Ⅱ"],
   },
   "중국 문화": {
     section: STANDARD_SECTION.제2외국어,
-    synonym: ["중국문화", "중국문화2"],
+    synonym: ["중국문화", "중국문화2", "중국문화I", "중국문화II", "중국문화Ⅱ"],
   },
   "러시아 문화": {
     section: STANDARD_SECTION.제2외국어,
@@ -602,7 +644,7 @@ export const STANDARD = {
   },
   한문: {
     section: STANDARD_SECTION.제2외국어,
-    synonym: ["한문1"],
+    synonym: ["한문1", "한문2", "한문I", "한문II", "한문Ⅱ"],
   },
   "한문 고전 읽기": {
     section: STANDARD_SECTION.제2외국어,
