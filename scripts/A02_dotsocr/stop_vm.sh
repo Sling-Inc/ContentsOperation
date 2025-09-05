@@ -1,7 +1,7 @@
 #!/bin/bash
 # 이 스크립트는 dots-ocr-l4-test-vm VM을 중지합니다.
 
-INSTANCE_NAME="dots-ocr-l4-test-vm"
+INSTANCE_NAME=${1:-"dots-ocr-l4-test-vm"}
 ZONE="asia-northeast3-a"
 
 echo "VM '$INSTANCE_NAME'을 중지합니다..."

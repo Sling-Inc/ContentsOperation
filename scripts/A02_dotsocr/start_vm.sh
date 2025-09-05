@@ -5,7 +5,7 @@
 
 set -e
 
-INSTANCE_NAME="dots-ocr-l4-test-vm"
+INSTANCE_NAME=${1:-"dots-ocr-l4-test-vm"}
 ZONE="asia-northeast3-a"
 CONTAINER_NAME="dots_ocr_service_instance"
 IMAGE_NAME="custom-dots-ocr:unified"

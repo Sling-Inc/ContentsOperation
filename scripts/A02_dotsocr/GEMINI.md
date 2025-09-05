@@ -8,19 +8,22 @@
 
 ### 1-1. GCP VM
 
-- **이름:** `dots-ocr-l4-test-vm`
+- **사용 가능한 VM 목록:**
+  - `dots-ocr-l4-test-vm` (기본)
+  - `dots-ocr-l4-vm-001`
 - **사양:** `g2-standard-8`, L4 GPU, 200GB balanced persistent disk
 - **Zone:** `asia-northeast3-a`
+- **운영 규칙:** `A02_dotsOCR` 단계를 시작하기 전, 위에 명시된 VM 중 어떤 VM을 사용할지 사용자에게 반드시 확인을 받아야 합니다.
 
 ### 1-2. 핵심 스크립트
 
 - **VM 제어 (로컬 실행):**
-  - `start_vm.sh`: VM 및 컨테이너 시작
-  - `stop_vm.sh`: VM 중지
+  - `start_vm.sh [VM_이름]`: VM 및 컨테이너 시작. VM 이름을 인자로 전달할 수 있습니다 (기본값: `dots-ocr-l4-test-vm`).
+  - `stop_vm.sh [VM_이름]`: VM 중지. VM 이름을 인자로 전달할 수 있습니다 (기본값: `dots-ocr-l4-test-vm`).
 - **분석 실행 (VM 내부):**
   - `process_all_images.sh`: 이미지 병렬 처리
 - **데이터 전송 (로컬 실행):**
-  - `download_results.sh`: 결과 다운로드 및 경로 정리
+  - `download_results.sh`: 결과 다운로드 및 경로 정리. `-v [VM_이름]` 옵션으로 VM을 지정할 수 있습니다.
 
 ## 2. 표준 작업 절차 (SOP)
 
@@ -29,12 +32,14 @@
 ### 1단계: VM 상태 확인 및 시작
 
 - **(권장) 상태 확인:** 작업을 시작하기 전에 VM의 현재 상태를 확인합니다.
-  - **명령:** `gcloud compute instances describe dots-ocr-l4-test-vm --zone=asia-northeast3-a --format='get(status)'`
+  - **명령:** `gcloud compute instances describe [VM_이름] --zone=asia-northeast3-a --format='get(status)'`
+  - **실행 예시:** `gcloud compute instances describe dots-ocr-l4-vm-001 --zone=asia-northeast3-a --format='get(status)'`
   - **결과:** `RUNNING`이면 다음 단계로, `TERMINATED`이면 아래 시작 명령을 실행합니다.
 - **VM 시작:**
-  - **명령:** `bash scripts/A02_dotsOCR/start_vm.sh`
+  - **명령:** `bash scripts/A02_dotsOCR/start_vm.sh [VM_이름]`
+  - **실행 예시:** `bash scripts/A02_dotsOCR/start_vm.sh dots-ocr-l4-vm-001`
   - **동작:**
-    - GCP의 `dots-ocr-l4-test-vm` VM을 시작합니다.
+    - 지정된 GCP VM(기본값: `dots-ocr-l4-test-vm`)을 시작합니다.
     - VM에 접속하여 기존 컨테이너를 삭제하고, `~/input` 및 `~/result` 폴더를 생성하여 작업 환경을 초기화합니다.
     - `custom-dots-ocr:unified` 이미지를 사용하여 새로운 컨테이너를 백그라운드에서 실행합니다.
 - **주의사항:**
@@ -44,19 +49,16 @@
 ### 2단계: (권장) 작업 폴더 정리
 
 - 이전 작업의 파일이 남아있는 경우를 방지하기 위해, 이미지 업로드 전에 VM의 `input`, `result` 폴더를 비우는 것을 권장합니다.
-- **명령:** `gcloud compute ssh dots-ocr-l4-test-vm --zone=asia-northeast3-a --command="sudo rm -rf ~/input/* ~/result/*"`
+- **명령:** `gcloud compute ssh [VM_이름] --zone=asia-northeast3-a --command="sudo rm -rf ~/input/* ~/result/*"`
+- **실행 예시:** `gcloud compute ssh dots-ocr-l4-vm-001 --zone=asia-northeast3-a --command="sudo rm -rf ~/input/* ~/result/*"`
 
 ### 3단계: 이미지 업로드
 
-- **명령:** `gcloud compute scp --recurse [로컬 상위 폴더]/* dots-ocr-l4-test-vm:~/input/ --zone=asia-northeast3-a`
+- **명령:** `gcloud compute scp --recurse [로컬 상위 폴더]/* [VM_이름]:~/input/ --zone=asia-northeast3-a`
+- **실행 예시:** `gcloud compute scp --recurse workspace/A01_images_layout/* dots-ocr-l4-vm-001:~/input/ --zone=asia-northeast3-a`
 - **동작:**
   - 로컬 컴퓨터의 이미지 폴더들을 VM의 `~/input` 디렉토리로 복사합니다.
-  - `100dpi`, `120dpi` 등 여러 버전의 이미지 폴더를 담고 있는 상위 폴더(예: `A01_images_layout`)의 내용물 전체를 한 번에 업로드하는 것을 권장합니다. 이렇게 하면 VM 내부에 `~/input/100dpi/`, `~/input/120dpi/` 와 같이 폴더 구조가 그대로 유지되어 효율적입니다.
-- **실행 예시:**
-  ```bash
-  # A01_images_layout 폴더 안의 100dpi, 120dpi 폴더들을 모두 업로드
-  gcloud compute scp --recurse workspace/A01_images_layout/* dots-ocr-l4-test-vm:~/input/ --zone=asia-northeast3-a
-  ```
+  - `100dpi`, `120dpi` 등 여러 버전의 이미지 폴더를 담고 있는 상위 폴더(예: `A01_images_layout`)의 내용물 전체를 한 번에 업로드 해야 합니다. 이렇게 하면 VM 내부에 `~/input/100dpi/`, `~/input/120dpi/` 와 같이 폴더 구조가 그대로 유지되어 효율적입니다.
 - **주의사항:**
   - 명령어 마지막의 `/*` 와 `~/input/` 를 정확히 입력해야 폴더 내용물만 올바르게 복사됩니다.
 
@@ -64,16 +66,19 @@
 
 - 분석을 실행하기 직전에, 아래 명령으로 서비스가 정상적으로 준비되었는지 최종 확인합니다. `Connection Refused` 오류를 방지하는 가장 확실한 방법입니다.
   - **1. 컨테이너 상태 확인:**
-    - **명령:** `gcloud compute ssh dots-ocr-l4-test-vm --zone=asia-northeast3-a --command="sudo docker ps"`
+    - **명령:** `gcloud compute ssh [VM_이름] --zone=asia-northeast3-a --command="sudo docker ps"`
+    - **실행 예시:** `gcloud compute ssh dots-ocr-l4-vm-001 --zone=asia-northeast3-a --command="sudo docker ps"`
     - **정상:** `STATUS` 항목이 `Up ...`으로 표시된 컨테이너가 있어야 합니다.
   - **2. GPU 상태 확인:**
-    - **명령:** `gcloud compute ssh dots-ocr-l4-test-vm --zone=asia-northeast3-a --command="nvidia-smi"`
+    - **명령:** `gcloud compute ssh [VM_이름] --zone=asia-northeast3-a --command="nvidia-smi"`
+    - **실행 예시:** `gcloud compute ssh dots-ocr-l4-vm-001 --zone=asia-northeast3-a --command="nvidia-smi"`
     - **정상:** `Memory-Usage`에 수 GB 이상의 메모리가 사용 중이고, 하단 `Processes` 목록에 `python3` 등의 프로세스가 보여야 합니다.
 
 ### 5단계: 분석 병렬 처리 실행
 
 - **분석 실행:**
-  - **명령:** `gcloud compute ssh dots-ocr-l4-test-vm --zone=asia-northeast3-a --command="~/process_all_images.sh [옵션]"`
+  - **명령:** `gcloud compute ssh [VM_이름] --zone=asia-northeast3-a --command="~/process_all_images.sh [옵션]"`
+  - **실행 예시:** `gcloud compute ssh dots-ocr-l4-vm-001 --zone=asia-northeast3-a --command="~/process_all_images.sh -p 12 -m 2000000"`
   - **입력 (VM):** `~/input` 디렉토리 내의 모든 이미지 파일 (`.png`, `.jpg`, `.jpeg`)
   - **출력 (VM):** `~/result` 디렉토리 내에 입력과 동일한 폴더 구조로 OCR 결과(`page1/page1.json` 등)가 생성됩니다.
 - **주의사항:**
@@ -81,10 +86,12 @@
 
 ### 6단계: 결과 다운로드 (고속화 버전)
 
-- **명령:** `bash scripts/A02_dotsOCR/download_results.sh [-i] [-o <출력 디렉토리>]`
+- **명령:** `bash scripts/A02_dotsOCR/download_results.sh [-i] [-o <출력 디렉토리>] [-v <VM_이름>]`
+- **실행 예시:** `bash scripts/A02_dotsOCR/download_results.sh -i -o workspace/A02_results -v dots-ocr-l4-vm-001`
 - **주요 옵션:**
   - `-i`: 결과 이미지(.jpg)를 포함하여 다운로드합니다.
   - `-o`: 결과물이 저장될 로컬 디렉토리를 지정합니다. (기본값: `./results`)
+  - `-v`: 결과를 다운로드할 VM의 이름을 지정합니다. (기본값: `dots-ocr-l4-test-vm`)
 - **동작:**
   - VM의 `~/result` 디렉토리 전체를 로컬의 임시 폴더로 한 번에 다운로드하여 속도를 크게 향상시켰습니다.
   - 다운로드 후, 스크립트가 로컬에서 자동으로 불필요한 중간 경로를 정리하고 최종 결과물만 지정된 출력 디렉토리에 저장합니다.
@@ -93,8 +100,9 @@
 
 ### 7단계: VM 중지
 
-- **명령:** `bash scripts/A02_dotsOCR/stop_vm.sh`
-- **동작:** VM을 중지하여 불필요한 클라우드 비용 발생을 방지합니다.
+- **명령:** `bash scripts/A02_dotsOCR/stop_vm.sh [VM_이름]`
+- **실행 예시:** `bash scripts/A02_dotsOCR/stop_vm.sh dots-ocr-l4-vm-001`
+- **동작:** 지정된 VM(기본값: `dots-ocr-l4-test-vm`)을 중지하여 불필요한 클라우드 비용 발생을 방지합니다.
 - **주의사항:**
   - 모든 작업이 끝나면 반드시 실행하는 것을 권장합니다.
 

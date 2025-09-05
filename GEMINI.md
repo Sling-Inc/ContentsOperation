@@ -61,17 +61,30 @@ PDF 파일을 분석 가능한 데이터(이미지, JSON)로 변환합니다.
 
 2.  **레이아웃 분석 (`A02_dotsOCR/`)**
 
-    - 해당 절차를 수행하기 전, 반드시 `scripts/A02_dotsOCR/GEMINI.md` 문서를 확인하세요.
+    - 해당 절차를 수행하기 전, 반드시 `scripts/A02_dotsOCR/GEMINI.md` 문서를 확인하세요. 이 단계는 여러 스크립트로 구성되며, 사용할 VM을 지정해야 할 수 있습니다.
     - 저해상도 이미지를 사용하여 GCP VM에서 `dots.ocr` 모델로 이미지의 구조를 분석하고 **레이아웃 JSON**을 생성합니다.
     - `download_results.sh` 실행 시 `-i` 옵션을 추가하면, 레이아웃 분석이 시각화된 이미지(.jpg)를 함께 다운로드할 수 있습니다.
     - **[실행 예시]**
       ```bash
-      # VM 시작부터 결과 다운로드까지
-      bash scripts/A02_dotsOCR/start_vm.sh
-      gcloud compute scp --recurse workspace/A01_images_layout/* ...
-      gcloud compute ssh ... --command="~/process_all_images.sh ..."
-      bash scripts/A02_dotsOCR/download_results.sh -o workspace/A02_dotsOCR_results
-      bash scripts/A02_dotsOCR/stop_vm.sh
+      # VM 시작부터 결과 다운로드까지 (기본 VM 'dots-ocr-l4-test-vm'을 사용하는 경우)
+      
+      # 1. VM 시작
+      bash scripts/A02_dotsOCR/start_vm.sh dots-ocr-l4-test-vm
+      
+      # 2. (권장) 이전 작업 폴더 정리
+      gcloud compute ssh dots-ocr-l4-test-vm --zone=asia-northeast3-a --command="sudo rm -rf ~/input/* ~/result/*"
+
+      # 3. 이미지 업로드
+      gcloud compute scp --recurse workspace/A01_images_layout/* dots-ocr-l4-test-vm:~/input/ --zone=asia-northeast3-a
+
+      # 4. 분석 실행
+      gcloud compute ssh dots-ocr-l4-test-vm --zone=asia-northeast3-a --command="~/process_all_images.sh -p 12 -m 2000000"
+
+      # 5. 결과 다운로드
+      bash scripts/A02_dotsOCR/download_results.sh -v dots-ocr-l4-test-vm -i -o workspace/A02_dotsOCR_results
+
+      # 6. VM 중지
+      bash scripts/A02_dotsOCR/stop_vm.sh dots-ocr-l4-test-vm
       ```
 
 3.  **최적 레이아웃 선택 (`A03_selectOptimumLayout/`)**

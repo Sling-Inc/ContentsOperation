@@ -2,12 +2,13 @@
 # This script downloads results from the VM efficiently and restructures them locally.
 # It uses a single recursive scp for speed and accepts an output directory.
 #
-# Usage: ./download_results.sh [-i] [-o <output_dir>]
+# Usage: ./download_results.sh [-i] [-o <output_dir>] [-v <vm_name>]
 #   -i: Include images (.jpg) in the download.
 #   -o: Specify the output directory (default: ./results)
+#   -v: Specify the VM name (default: dots-ocr-l4-test-vm)
 
 # --- Configuration ---
-VM_NAME="dots-ocr-l4-test-vm"
+VM_NAME="dots-ocr-l4-test-vm" # Default VM Name
 ZONE="asia-northeast3-a"
 REMOTE_BASE_DIR="~/result"
 LOCAL_FINAL_DIR="./results" # Default output directory
@@ -17,13 +18,16 @@ LOCAL_TEMP_DIR="./results_temp_$(date +%s)" # Unique temp directory
 INCLUDE_IMAGES=false
 
 # --- Argument Parsing ---
-while getopts "io:" opt; do
+while getopts "io:v:" opt; do
   case ${opt} in
     i)
       INCLUDE_IMAGES=true
       ;;
     o)
       LOCAL_FINAL_DIR=$OPTARG
+      ;;
+    v)
+      VM_NAME=$OPTARG
       ;;
     \?)
       echo "Invalid Option: -$OPTARG" 1>&2
